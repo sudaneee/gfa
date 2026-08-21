@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parent Portal — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script src="../assets/js/fees.js"></script>
+<script>const session = initDashLayout({ role: 'parent', title: 'Parent Portal', subtitle: 'Stay connected to your children\'s academic journey.' });</script>
+
+<template id="pageTemplate">
+  <div class="tabs mb-24">
+    <button class="tab-btn" data-tabkey="overview">Overview</button>
+    <button class="tab-btn" data-tabkey="children">My Children</button>
+    <button class="tab-btn" data-tabkey="results">Results</button>
+    <button class="tab-btn" data-tabkey="attendance">Attendance</button>
+    <button class="tab-btn" data-tabkey="fees">Fees & Payments</button>
+    <button class="tab-btn" data-tabkey="announcements">Announcements</button>
+  </div>
+
+  <div data-tabpanel="overview">
+    <div class="stats-grid" id="overviewStats"></div>
+    <div class="card"><div class="card-header"><h3>My Children</h3></div><div class="card-body"><div class="grid-2" id="overviewChildren"></div></div></div>
+  </div>
+
+  <div data-tabpanel="children" style="display:none;">
+    <div class="grid-2" id="childrenGrid"></div>
+  </div>
+
+  <div data-tabpanel="results" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar"><select id="resultsChildSelect"></select><select id="resultsTermSelect"><option>First Term</option><option>Second Term</option><option>Third Term</option></select></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Subject</th><th>CA</th><th>Exam</th><th>Total</th><th>Grade</th><th>Remark</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+      <button class="btn btn-secondary mt-16" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Report Card</button>
+    </div></div>
+  </div>
+
+  <div data-tabpanel="attendance" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar"><select id="attChildSelect"></select></div>
+      <div class="stats-grid" id="attSummary"></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Status</th></tr></thead><tbody id="attBody"></tbody></table></div>
+    </div></div>
+  </div>
+
+  <div data-tabpanel="fees" style="display:none;">
+    <div class="grid-2" id="feesGrid"></div>
+  </div>
+
+  <div data-tabpanel="announcements" style="display:none;">
+    <div class="card"><div class="card-body" id="annList"></div></div>
+  </div>
+</template>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+document.body.insertAdjacentHTML('beforeend', PAYMENT_MODAL_HTML);
+
+const db = DB.load();
+const parent = db.parents.find(p => p.id === session.refId) || db.parents[0];
+const children = db.students.filter(s => parent.childrenIds.includes(s.id));
+
+function childCard(s, extra) {
+  const invoice = db.invoices.find(i => i.studentId === s.id);
+  const attendance = db.attendance.filter(a => a.studentId === s.id);
+  const rate = attendance.length ? Math.round(attendance.filter(a=>a.status==='Present').length/attendance.length*100) : 0;
+  return `<div class="card card-body">
+    <div class="flex gap-16" style="align-items:center;">
+      <div class="avatar avatar-lg">${initials(s.firstName, s.lastName)}</div>
+      <div><h4 class="mb-0">${fullName(s)}</h4><p class="text-muted text-sm mb-0">${studentClassLabel(s)} &middot; ${s.admissionNo}</p></div>
+    </div>
+    <div class="rc-summary mt-16">
+      <div class="box"><strong>${rate}%</strong><span>Attendance</span></div>
+      <div class="box"><strong>${invoice ? formatCurrency(invoice.balance) : '₦0'}</strong><span>Fees Due</span></div>
+    </div>
+    ${extra || ''}
+  </div>`;
+}
+
+document.getElementById('overviewStats').innerHTML = `
+  <div class="stat-card"><div class="icon icon-navy"><i class="fa-solid fa-children"></i></div><div class="value">${children.length}</div><div class="label">My Children</div></div>
+  <div class="stat-card"><div class="icon icon-green"><i class="fa-solid fa-calendar-check"></i></div><div class="value">${(() => { const a = db.attendance.filter(a=>children.some(c=>c.id===a.studentId)); return a.length ? Math.round(a.filter(x=>x.status==='Present').length/a.length*100) : 0; })()}%</div><div class="label">Avg Attendance</div></div>
+  <div class="stat-card"><div class="icon icon-gold"><i class="fa-solid fa-sack-dollar"></i></div><div class="value">${formatCurrency(db.invoices.filter(i=>children.some(c=>c.id===i.studentId)).reduce((s,i)=>s+i.balance,0))}</div><div class="label">Outstanding Fees</div></div>
+  <div class="stat-card"><div class="icon icon-purple"><i class="fa-solid fa-bullhorn"></i></div><div class="value">${db.announcements.filter(a=>a.audience==='All Parents').length}</div><div class="label">New Announcements</div></div>`;
+document.getElementById('overviewChildren').innerHTML = children.map(s => childCard(s)).join('');
+document.getElementById('childrenGrid').innerHTML = children.map(s => childCard(s)).join('');
+
+// Results tab
+document.getElementById('resultsChildSelect').innerHTML = children.map(s => `<option value="${s.id}">${fullName(s)} (${studentClassLabel(s)})</option>`).join('');
+function renderResults() {
+  const studentId = document.getElementById('resultsChildSelect').value;
+  const term = document.getElementById('resultsTermSelect').value;
+  const results = db.results.filter(r => r.studentId === studentId && r.term === term);
+  document.getElementById('resultsBody').innerHTML = results.map(r => `<tr><td>${r.subject}</td><td>${r.ca}</td><td>${r.exam}</td><td>${r.total}</td><td><span class="badge badge-${r.grade==='F'?'danger':r.grade==='A'?'success':'gray'}">${r.grade}</span></td><td>${r.remark}</td></tr>`).join('') || '<tr><td colspan="6" class="text-muted">No results recorded for this term yet.</td></tr>';
+}
+document.getElementById('resultsChildSelect').addEventListener('change', renderResults);
+document.getElementById('resultsTermSelect').addEventListener('change', renderResults);
+renderResults();
+
+// Attendance tab
+document.getElementById('attChildSelect').innerHTML = children.map(s => `<option value="${s.id}">${fullName(s)}</option>`).join('');
+function renderAttendance() {
+  const studentId = document.getElementById('attChildSelect').value;
+  const records = db.attendance.filter(a => a.studentId === studentId).slice().reverse();
+  const present = records.filter(a=>a.status==='Present').length, absent = records.filter(a=>a.status==='Absent').length, late = records.filter(a=>a.status==='Late').length;
+  document.getElementById('attSummary').innerHTML = `
+    <div class="stat-card"><div class="icon icon-green" style="width:40px;height:40px;"><i class="fa-solid fa-check"></i></div><div class="value">${present}</div><div class="label">Days Present</div></div>
+    <div class="stat-card"><div class="icon icon-navy" style="width:40px;height:40px;"><i class="fa-solid fa-xmark"></i></div><div class="value">${absent}</div><div class="label">Days Absent</div></div>
+    <div class="stat-card"><div class="icon icon-gold" style="width:40px;height:40px;"><i class="fa-solid fa-clock"></i></div><div class="value">${late}</div><div class="label">Days Late</div></div>
+    <div class="stat-card"><div class="icon icon-purple" style="width:40px;height:40px;"><i class="fa-solid fa-percent"></i></div><div class="value">${records.length?Math.round(present/records.length*100):0}%</div><div class="label">Attendance Rate</div></div>`;
+  document.getElementById('attBody').innerHTML = records.slice(0,15).map(a => `<tr><td>${formatDate(a.date)}</td><td><span class="badge badge-${statusBadgeClass(a.status)}">${a.status}</span></td></tr>`).join('');
+}
+document.getElementById('attChildSelect').addEventListener('change', renderAttendance);
+renderAttendance();
+
+// Fees tab
+function renderFees() {
+  document.getElementById('feesGrid').innerHTML = children.map(s => {
+    const invoice = db.invoices.find(i => i.studentId === s.id);
+    if (!invoice) return `<div class="card card-body">${fullName(s)} — no invoice found.</div>`;
+    return `<div class="card">
+      <div class="card-header"><h3>${fullName(s)}</h3><span class="badge badge-${statusBadgeClass(invoice.status)}">${invoice.status}</span></div>
+      <div class="card-body">
+        <p class="text-muted text-sm mb-16">${studentClassLabel(s)} &middot; ${invoice.session} &middot; ${invoice.term} &middot; Invoice ${invoice.id}</p>
+        <table class="data-table" style="min-width:0;"><tbody>
+          ${invoice.items.map(it => `<tr><td>${it.category}</td><td style="text-align:right;">${formatCurrency(it.amount)}</td></tr>`).join('')}
+          <tr style="font-weight:800;border-top:2px solid var(--gray-200);"><td>Total</td><td style="text-align:right;">${formatCurrency(invoice.total)}</td></tr>
+          <tr><td>Paid</td><td style="text-align:right;color:var(--success);">${formatCurrency(invoice.paid)}</td></tr>
+          <tr><td>Balance</td><td style="text-align:right;color:var(--danger);">${formatCurrency(invoice.balance)}</td></tr>
+        </tbody></table>
+        ${invoice.balance > 0 ? `<button class="btn btn-primary btn-block mt-16" onclick="startPaymentFlow('${invoice.id}', renderFees)"><i class="fa-solid fa-credit-card"></i> Pay Fees</button>` : `<div class="alert alert-success mt-16"><i class="fa-solid fa-circle-check"></i> Fully paid for this term.</div>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+renderFees();
+
+// Announcements
+document.getElementById('annList').innerHTML = db.announcements.filter(a => a.audience === 'All Parents').slice().reverse().map(a => `
+  <div class="activity-item"><div class="dot-icon icon-purple" style="background:#efe8fb;color:var(--purple-600);"><i class="fa-solid fa-bullhorn"></i></div><div><p><strong>${a.title}</strong><br>${a.content}</p><span>${formatDate(a.date)}</span></div></div>`).join('') || '<p class="text-muted">No announcements yet.</p>';
+
+initHashTabs('overview');
+</script>
+</body>
+</html>

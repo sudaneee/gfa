@@ -1,0 +1,62 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Update Results — {{ school.name }}{% endblock %}
+{% block dash_title %}Update Results{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">Correct scores that have already been entered — this only loads students who already have a result for the selection below.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card"><div class="card-body">
+  {% include 'results/_selector_bar.html' with show_subject=True load_label="Load Results" %}
+
+  <div class="alert alert-info"><i class="fa-solid fa-circle-info"></i> Grade boundaries:
+    {% for g in grade_boundaries %}{{ g.grade }} = {{ g.min_score }}–{{ g.max_score }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+    CA max {{ ca_max_total }}, Exam max 70.
+  </div>
+
+  {% if section and subject and term %}
+  <h4 class="mb-8">Update Through Excel</h4>
+  <div class="flex gap-12 flex-wrap mb-16 no-print">
+    <a class="btn btn-secondary btn-sm" href="{% url 'results:download_template' %}?session_id={{ session.pk }}&term_id={{ term.pk }}&section_id={{ section.pk }}&subject_id={{ subject.pk }}&existing_only=1&return_to=update"><i class="fa-solid fa-file-excel"></i> Download Existing Results</a>
+    <form method="post" action="{% url 'results:upload' %}" enctype="multipart/form-data" class="flex gap-8" style="align-items:center;">
+      {% csrf_token %}
+      <input type="hidden" name="session_id" value="{{ session.pk }}">
+      <input type="hidden" name="term_id" value="{{ term.pk }}">
+      <input type="hidden" name="section_id" value="{{ section.pk }}">
+      <input type="hidden" name="subject_id" value="{{ subject.pk }}">
+      <input type="hidden" name="existing_only" value="1">
+      <input type="hidden" name="return_to" value="update">
+      <input type="file" name="excel_file" accept=".xlsx" required style="max-width:220px;">
+      <button type="submit" class="btn btn-secondary btn-sm"><i class="fa-solid fa-file-arrow-up"></i> Upload Modified Excel</button>
+    </form>
+  </div>
+  <h4 class="mb-8">Update Online</h4>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="session_id" value="{{ session.pk }}">
+    <input type="hidden" name="term_id" value="{{ term.pk }}">
+    <input type="hidden" name="section_id" value="{{ section.pk }}">
+    <input type="hidden" name="subject_id" value="{{ subject.pk }}">
+    {% include 'results/_score_grid.html' with existing_only=True %}
+    <div class="flex-between mt-16">
+      <span></span>
+      <button type="submit" class="btn btn-primary"{% if not term %} disabled{% endif %}><i class="fa-solid fa-floppy-disk"></i> Save Updates</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="empty-state"><i class="fa-solid fa-pen"></i><h4>No class assigned</h4></div>
+  {% endif %}
+</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('[data-total-row]').forEach(row => {
+    const scoreInputs = row.querySelectorAll('[data-comp], [data-exam]');
+    function recalc() {
+      let total = 0;
+      scoreInputs.forEach(input => { total += Math.min(+input.value || 0, +input.dataset.max); });
+      row.querySelector('[data-total-cell]').innerHTML = `<strong>${total}</strong>`;
+    }
+    scoreInputs.forEach(input => input.addEventListener('input', recalc));
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base_public.html" %}
+{% block title %}Facilities &amp; Activities — {{ school.name }}{% endblock %}
+{% block page_content %}
+<section class="page-header">
+  <div class="container"><h1>Facilities &amp; Activities</h1><p>A safe, modern campus and a well-rounded co-curricular programme.</p>
+  <div class="breadcrumbs"><a href="{% url 'website:home' %}">Home</a><span class="sep">/</span><span>Facilities</span></div></div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-title"><span class="eyebrow">Our Facilities</span><h2>Built for Learning &amp; Safety</h2></div>
+    <div class="facility-grid">
+      {% for card in facility_cards %}
+      <div class="facility-card"><div class="facility-img"><i class="{{ card.icon }}"></i></div><div class="body"><h4>{{ card.title }}</h4><p>{{ card.description }}</p></div></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--gray-50);">
+  <div class="container">
+    <div class="section-title"><span class="eyebrow">Enrichment Programmes</span><h2>Extracurricular Activities</h2></div>
+    <div class="activity-grid">
+      {% for card in activity_cards %}
+      <div class="facility-card"><div class="facility-img"><i class="{{ card.icon }}"></i></div><div class="body"><h4>{{ card.title }}</h4><p>{{ card.description }}</p></div></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section-sm"><div class="container"><div class="cta-band">
+  <div><h2>Come See Our Campus</h2><p>Schedule a visit or begin your application today.</p></div>
+  <a href="{% url 'admissions:apply' %}" class="btn btn-primary btn-lg">Apply Now</a>
+</div></div></section>
+{% endblock %}

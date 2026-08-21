@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fees Management — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'School Fees Management', subtitle: 'Manage fee structure, student billing and invoices.' });</script>
+
+<template id="pageTemplate">
+  <div class="tabs mb-24">
+    <button class="tab-btn" data-tabkey="structure">Fee Structure</button>
+    <button class="tab-btn" data-tabkey="invoices">Invoices</button>
+  </div>
+
+  <div data-tabpanel="structure">
+    <div class="grid-3" id="feeStructureGrid"></div>
+  </div>
+
+  <div data-tabpanel="invoices" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar">
+        <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i><input type="text" id="searchInput" placeholder="Search by student name or invoice no..."></div>
+        <select id="statusFilter"><option value="">All Status</option><option>Paid</option><option>Partial</option><option>Unpaid</option></select>
+      </div>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Invoice No.</th><th>Student</th><th>Class</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="invoicesTableBody"></tbody>
+      </table></div>
+      <div class="pagination" id="pagination"></div>
+    </div></div>
+  </div>
+</template>
+
+<div class="modal-overlay" id="invoiceModal">
+  <div class="modal"><div class="modal-header"><h3>Invoice Details</h3><button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button></div>
+  <div class="modal-body" id="invoiceModalBody"></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button><button class="btn btn-secondary" onclick="closeModal('invoiceModal')">Close</button></div></div>
+</div>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+const db = DB.load();
+
+document.getElementById('feeStructureGrid').innerHTML = Object.keys(FEE_STRUCTURE).map(level => {
+  const items = FEE_STRUCTURE[level];
+  const total = items.reduce((s, i) => s + i[1], 0);
+  return `<div class="card">
+    <div class="card-header"><h3>${level}</h3></div>
+    <div class="card-body">
+      <table class="data-table" style="min-width:0;">
+        <tbody>${items.map(i => `<tr><td>${i[0]}</td><td style="text-align:right;">${formatCurrency(i[1])}</td></tr>`).join('')}</tbody>
+        <tfoot><tr style="font-weight:800;border-top:2px solid var(--gray-200);"><td>Total</td><td style="text-align:right;">${formatCurrency(total)}</td></tr></tfoot>
+      </table>
+    </div>
+  </div>`;
+}).join('');
+
+let currentPage = 1; const perPage = 8;
+function getFiltered() {
+  const term = document.getElementById('searchInput').value.trim().toLowerCase();
+  const status = document.getElementById('statusFilter').value;
+  return db.invoices.filter(inv => {
+    if (status && inv.status !== status) return false;
+    if (term) {
+      const s = db.students.find(s => s.id === inv.studentId);
+      const hay = `${s ? fullName(s) : ''} ${inv.id}`.toLowerCase();
+      if (!hay.includes(term)) return false;
+    }
+    return true;
+  });
+}
+function renderInvoices() {
+  const all = getFiltered();
+  const totalPages = Math.max(1, Math.ceil(all.length / perPage));
+  currentPage = Math.min(currentPage, totalPages);
+  const items = all.slice((currentPage-1)*perPage, currentPage*perPage);
+  document.getElementById('invoicesTableBody').innerHTML = items.map(inv => {
+    const s = db.students.find(s => s.id === inv.studentId);
+    return `<tr><td><strong>${inv.id}</strong></td><td>${s ? fullName(s) : '-'}</td><td>${s ? studentClassLabel(s) : '-'}</td>
+      <td>${formatCurrency(inv.total)}</td><td>${formatCurrency(inv.paid)}</td><td>${formatCurrency(inv.balance)}</td>
+      <td><span class="badge badge-${statusBadgeClass(inv.status)}">${inv.status}</span></td>
+      <td><button class="btn btn-sm btn-secondary" onclick="viewInvoice('${inv.id}')"><i class="fa-solid fa-eye"></i> View</button></td></tr>`;
+  }).join('');
+  document.getElementById('pagination').innerHTML = Array.from({length: totalPages}, (_,i)=>i+1).map(p => `<button class="page-btn ${p===currentPage?'active':''}" onclick="goToPage(${p})">${p}</button>`).join('');
+}
+function goToPage(p){ currentPage = p; renderInvoices(); }
+
+function viewInvoice(id) {
+  const inv = db.invoices.find(i => i.id === id);
+  const s = db.students.find(s => s.id === inv.studentId);
+  document.getElementById('invoiceModalBody').innerHTML = `
+    <div class="flex-between mb-16"><div><h4 class="mb-0">${inv.id}</h4><p class="text-muted text-sm mb-0">${s ? fullName(s) : ''} &middot; ${s ? studentClassLabel(s) : ''}</p></div><span class="badge badge-${statusBadgeClass(inv.status)}">${inv.status}</span></div>
+    <table class="data-table" style="min-width:0;"><tbody>
+      ${inv.items.map(it => `<tr><td>${it.category}</td><td style="text-align:right;">${formatCurrency(it.amount)}</td></tr>`).join('')}
+      <tr style="font-weight:800;border-top:2px solid var(--gray-200);"><td>Total</td><td style="text-align:right;">${formatCurrency(inv.total)}</td></tr>
+      <tr><td>Amount Paid</td><td style="text-align:right;color:var(--success);">${formatCurrency(inv.paid)}</td></tr>
+      <tr><td>Balance</td><td style="text-align:right;color:var(--danger);">${formatCurrency(inv.balance)}</td></tr>
+    </tbody></table>`;
+  openModal('invoiceModal');
+}
+
+document.getElementById('searchInput').addEventListener('input', debounce(()=>{currentPage=1;renderInvoices();},150));
+document.getElementById('statusFilter').addEventListener('change', ()=>{currentPage=1;renderInvoices();});
+renderInvoices();
+initHashTabs('structure');
+</script>
+</body>
+</html>

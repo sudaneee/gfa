@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CBT Examination — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body class="dash-body">
+<header class="dash-topbar" style="position:static;">
+  <div class="left"><div class="brand"><div class="brand-mark">GFA</div><div class="brand-text"><div class="name">Glittering Field Academy</div><div class="tagline">CBT Examination Portal</div></div></div></div>
+  <div class="right"><a href="dashboard.html" class="btn btn-secondary btn-sm no-print"><i class="fa-solid fa-arrow-left"></i> Exit</a></div>
+</header>
+<main class="dash-content" style="max-width:1100px;margin:0 auto;">
+  <div id="examRoot"></div>
+</main>
+
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>Auth.requireRole(['student']);</script>
+<script src="../assets/js/examinations.js"></script>
+</body>
+</html>

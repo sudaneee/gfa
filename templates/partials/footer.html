@@ -1,0 +1,40 @@
+<footer class="site-footer"><div class="container">
+  <div class="footer-grid">
+    <div class="footer-about">
+      <div class="brand" style="margin-bottom:14px;">
+        <div class="brand-mark">GFA</div>
+        <div class="brand-text"><div class="name" style="color:#fff;">{{ school.name }}</div><div class="tagline">{{ school.tagline }}</div></div>
+      </div>
+      <p>{{ school.slogan }}. A trusted school in Suleja, Niger State offering Creche to Secondary education.</p>
+      <div class="footer-social">
+        <a href="#"><i class="fa-brands fa-facebook-f"></i></a>
+        <a href="#"><i class="fa-brands fa-instagram"></i></a>
+        <a href="#"><i class="fa-brands fa-x-twitter"></i></a>
+        <a href="#"><i class="fa-brands fa-whatsapp"></i></a>
+      </div>
+    </div>
+    <div><h5>Quick Links</h5><ul>
+      <li><a href="{% url 'website:about' %}">About Us</a></li>
+      <li><a href="{% url 'website:academics' %}">Academics</a></li>
+      <li><a href="{% url 'admissions:info' %}">Admissions</a></li>
+      <li><a href="{% url 'website:facilities' %}">Facilities</a></li>
+      <li><a href="{% url 'website:news_events' %}">News &amp; Events</a></li>
+    </ul></div>
+    <div><h5>Portals</h5><ul>
+      <li><a href="{% url 'accounts:login' %}">Parent Portal</a></li>
+      <li><a href="{% url 'accounts:login' %}">Student Portal</a></li>
+      <li><a href="{% url 'accounts:login' %}">Staff Login</a></li>
+      <li><a href="{% url 'admissions:track' %}">Track Application</a></li>
+      <li><a href="{% url 'admissions:apply' %}">Apply Now</a></li>
+    </ul></div>
+    <div><h5>Contact</h5><ul>
+      <li><i class="fa-solid fa-location-dot"></i> {{ school.address }}</li>
+      {% for phone in school.phone_list %}<li><i class="fa-solid fa-phone"></i> {{ phone }}</li>{% endfor %}
+      <li><i class="fa-solid fa-envelope"></i> {{ school.email }}</li>
+    </ul></div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-approved">{% for a in school.approval_list %}<span>{{ a }} APPROVED</span>{% endfor %}</div>
+    &copy; {% now "Y" %} {{ school.name }}. All rights reserved.
+  </div>
+</div></footer>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/website.css">
+<style>
+  body { background: linear-gradient(135deg, var(--navy-900), var(--navy-800) 55%, var(--purple-700)); min-height: 100vh; }
+  .login-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 30px 16px; }
+  .login-card { width: 100%; max-width: 960px; background: var(--white); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-lg); display: grid; grid-template-columns: 1fr 1fr; }
+  .login-side { background: linear-gradient(160deg, var(--navy-900), var(--purple-700)); color: #fff; padding: 44px 36px; display: flex; flex-direction: column; justify-content: space-between; }
+  .login-side .demo-list { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
+  .demo-chip { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: var(--radius-md); padding: 12px 14px; cursor: pointer; transition: var(--transition); }
+  .demo-chip:hover { background: rgba(255,255,255,.16); }
+  .demo-chip strong { display: block; font-size: .85rem; }
+  .demo-chip span { font-size: .74rem; color: rgba(255,255,255,.65); }
+  .login-form-side { padding: 44px 36px; }
+  @media (max-width: 800px) { .login-card { grid-template-columns: 1fr; } .login-side { order: 2; } }
+</style>
+</head>
+<body>
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-side">
+      <div>
+        <a href="index.html" class="brand" style="margin-bottom:30px;"><div class="brand-mark">GFA</div><div class="brand-text"><div class="name" style="color:#fff;">Glittering Field Academy</div><div class="tagline">Academics and Morality</div></div></a>
+        <h2 style="color:#fff;">Welcome Back</h2>
+        <p style="color:rgba(255,255,255,.75);">Sign in to access the School Management System. This is a demonstration — pick any demo account below to explore its dashboard.</p>
+      </div>
+      <div class="demo-list">
+        <div class="demo-chip" data-email="admin@gfa.edu.ng" data-password="admin123"><strong><i class="fa-solid fa-user-shield"></i> Administrator</strong><span>admin@gfa.edu.ng · admin123</span></div>
+        <div class="demo-chip" data-email="teacher@gfa.edu.ng" data-password="teacher123"><strong><i class="fa-solid fa-chalkboard-user"></i> Teacher</strong><span>teacher@gfa.edu.ng · teacher123</span></div>
+        <div class="demo-chip" data-email="parent@gfa.edu.ng" data-password="parent123"><strong><i class="fa-solid fa-people-roof"></i> Parent</strong><span>parent@gfa.edu.ng · parent123</span></div>
+        <div class="demo-chip" data-email="student@gfa.edu.ng" data-password="student123"><strong><i class="fa-solid fa-user-graduate"></i> Student</strong><span>student@gfa.edu.ng · student123</span></div>
+      </div>
+    </div>
+    <div class="login-form-side">
+      <h3>Sign In</h3>
+      <p class="text-muted text-sm mb-24">Click a demo account on the left to autofill, or type the credentials manually.</p>
+      <form id="loginForm">
+        <div class="form-group"><label>Email Address</label><input type="email" id="loginEmail" placeholder="you@gfa.edu.ng" required></div>
+        <div class="form-group"><label>Password</label><input type="password" id="loginPassword" placeholder="••••••••" required></div>
+        <div class="flex-between mb-16">
+          <label class="checkbox-row text-sm"><input type="checkbox"> Remember me</label>
+          <a href="#" class="text-sm" style="color:var(--navy-700);font-weight:600;">Forgot password?</a>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg">Sign In <i class="fa-solid fa-arrow-right-to-bracket"></i></button>
+      </form>
+      <div class="alert alert-info mt-24"><i class="fa-solid fa-circle-info"></i> Demo credentials only — no real authentication is performed in this prototype.</div>
+      <p class="text-center text-sm mt-24"><a href="index.html" style="color:var(--navy-700);font-weight:600;"><i class="fa-solid fa-arrow-left"></i> Back to Website</a></p>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/storage.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+document.querySelectorAll('.demo-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.getElementById('loginEmail').value = chip.dataset.email;
+    document.getElementById('loginPassword').value = chip.dataset.password;
+  });
+});
+
+document.getElementById('loginForm').addEventListener('submit', function (e) {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const session = Auth.login(email, password);
+  if (!session) {
+    toast('Invalid email or password. Try one of the demo accounts.', 'error');
+    return;
+  }
+  toast(`Welcome, ${session.name}!`, 'success');
+  const destinations = { admin: 'dashboard/index.html', teacher: 'teacher/dashboard.html', parent: 'parent/dashboard.html', student: 'student/dashboard.html' };
+  setTimeout(() => { window.location.href = destinations[session.role]; }, 500);
+});
+
+// If already logged in, offer quick redirect
+const existing = Auth.current();
+if (existing) {
+  const destinations = { admin: 'dashboard/index.html', teacher: 'teacher/dashboard.html', parent: 'parent/dashboard.html', student: 'student/dashboard.html' };
+  toast(`You're already signed in as ${existing.name}.`, 'info');
+}
+</script>
+</body>
+</html>

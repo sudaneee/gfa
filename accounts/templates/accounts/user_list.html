@@ -1,0 +1,72 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Users & Roles — {{ school.name }}{% endblock %}
+{% block dash_title %}Users &amp; Roles{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">Every account in the system — search, filter, change roles, and activate or deactivate access.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="stats-grid mb-24">
+  <div class="stat-card"><div class="top"><div class="icon icon-purple"><i class="fa-solid fa-users"></i></div></div><div class="value">{{ total_users }}</div><div class="label">Total Users</div></div>
+  <div class="stat-card"><div class="top"><div class="icon icon-green"><i class="fa-solid fa-user-check"></i></div></div><div class="value">{{ active_users }}</div><div class="label">Active</div></div>
+  <div class="stat-card"><div class="top"><div class="icon icon-navy"><i class="fa-solid fa-user-shield"></i></div></div><div class="value">{{ role_counts.admin|default:0 }}</div><div class="label">Administrators</div></div>
+  <div class="stat-card"><div class="top"><div class="icon icon-gold"><i class="fa-solid fa-chalkboard-user"></i></div></div><div class="value">{{ role_counts.teacher|default:0 }}</div><div class="label">Teachers</div></div>
+</div>
+
+<div class="card"><div class="card-body">
+  <form method="get" class="filters-bar mb-16">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search name, username or email…" style="min-width:220px; padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:.85rem;">
+    <select name="role">
+      <option value="">All roles</option>
+      {% for value, label in roles %}<option value="{{ value }}" {% if role == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="status">
+      <option value="">All statuses</option>
+      <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+      <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+    {% if q or role or status %}<a href="{% url 'accounts:user_list' %}" class="btn btn-secondary btn-sm">Clear</a>{% endif %}
+    <a href="{% url 'accounts:user_create' %}" class="btn btn-primary btn-sm ml-auto"><i class="fa-solid fa-user-plus"></i> Add User</a>
+  </form>
+
+  <div class="table-wrap"><table class="data-table">
+    <thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th></th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.get_full_name|default:"—" }}</td>
+        <td>{{ u.username }}</td>
+        <td>{{ u.email|default:"—" }}</td>
+        <td>
+          <form method="post" action="{% url 'accounts:user_update_role' u.pk %}" class="flex gap-4" style="align-items:center;">
+            {% csrf_token %}
+            <input type="hidden" name="qs" value="{{ querystring }}">
+            <select name="role" onchange="this.form.submit()" style="font-size:.78rem; padding:4px 6px;">
+              {% for value, label in roles %}<option value="{{ value }}" {% if u.role == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+          </form>
+        </td>
+        <td>
+          {% if u.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-danger">Inactive</span>{% endif %}
+        </td>
+        <td>{{ u.date_joined|date:"d M Y" }}</td>
+        <td class="text-right">
+          <form method="post" action="{% url 'accounts:user_toggle_active' u.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="qs" value="{{ querystring }}">
+            {% if u == request.user %}
+            <button type="button" class="btn btn-secondary btn-sm" disabled title="You can't deactivate your own account">You</button>
+            {% elif u.is_active %}
+            <button type="submit" class="btn btn-secondary btn-sm"><i class="fa-solid fa-user-slash"></i> Deactivate</button>
+            {% else %}
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-user-check"></i> Activate</button>
+            {% endif %}
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="text-muted">No users match that search/filter.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div></div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Login — {{ school.name }}{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/website.css' %}">
+<style>
+  body { background: linear-gradient(135deg, var(--navy-900), var(--navy-800) 55%, var(--purple-700)); min-height: 100vh; }
+  .login-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 30px 16px; }
+  .login-card { width: 100%; max-width: 420px; background: var(--white); border-radius: var(--radius-lg); padding: 40px 36px; box-shadow: var(--shadow-lg); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-shell">
+  <div class="login-card">
+    <div class="brand" style="margin-bottom:24px;">
+      <div class="brand-mark">GFA</div>
+      <div class="brand-text"><div class="name">{{ school.name }}</div><div class="tagline">{{ school.tagline }}</div></div>
+    </div>
+    <h3>Sign In</h3>
+    <p class="text-muted text-sm mb-24">Sign in to access the School Management System.</p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.GET.next }}">
+      <div class="form-group"><label>Email or Username</label><input type="text" name="email" required autofocus></div>
+      <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
+      <button type="submit" class="btn btn-primary btn-block btn-lg">Sign In <i class="fa-solid fa-arrow-right-to-bracket"></i></button>
+    </form>
+    <p class="text-center text-sm mt-24"><a href="{% url 'website:home' %}" style="color:var(--navy-700);font-weight:600;"><i class="fa-solid fa-arrow-left"></i> Back to Website</a></p>
+  </div>
+</div>
+{% endblock %}

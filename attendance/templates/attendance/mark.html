@@ -1,0 +1,47 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Mark Attendance — {{ school.name }}{% endblock %}
+{% block dash_title %}Mark Attendance{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">Select a class and date, then record each student's status.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card"><div class="card-body">
+  {% if no_current_term %}
+  <div class="alert alert-warning"><i class="fa-solid fa-triangle-exclamation"></i> No current academic term is set — ask an administrator to mark one active in Academic Sessions.</div>
+  {% endif %}
+  <form method="get" class="filters-bar">
+    <select name="section_id" onchange="this.form.submit()">
+      {% for s in sections %}<option value="{{ s.pk }}" {% if section and s.pk == section.pk %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+    <input type="date" name="date" value="{{ date }}" onchange="this.form.submit()">
+  </form>
+
+  {% if section %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section_id" value="{{ section.pk }}">
+    <input type="hidden" name="date" value="{{ date }}">
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>Admission No.</th><th>Name</th><th>Present</th><th>Absent</th><th>Late</th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>{{ row.student.admission_number }}</td><td>{{ row.student.full_name }}</td>
+          <td><input type="radio" name="status_{{ row.student.pk }}" value="Present" {% if row.status == 'Present' %}checked{% endif %}></td>
+          <td><input type="radio" name="status_{{ row.student.pk }}" value="Absent" {% if row.status == 'Absent' %}checked{% endif %}></td>
+          <td><input type="radio" name="status_{{ row.student.pk }}" value="Late" {% if row.status == 'Late' %}checked{% endif %}></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-muted">No active students in this class.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    <div class="flex-between mt-16">
+      <span class="text-muted text-sm">{{ rows|length }} students</span>
+      <button type="submit" class="btn btn-primary"{% if no_current_term %} disabled{% endif %}><i class="fa-solid fa-floppy-disk"></i> Save Attendance</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="empty-state"><i class="fa-solid fa-people-roof"></i><h4>No class assigned</h4><p>You are not assigned to any class section yet.</p></div>
+  {% endif %}
+</div></div>
+{% endblock %}

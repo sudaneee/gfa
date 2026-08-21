@@ -1,0 +1,102 @@
+{% load static %}
+<div class="sidebar-brand">
+  <div class="brand-mark">GFA</div>
+  <div>
+    <div class="name">{{ school.name }}</div>
+    <div class="role-tag">{{ user.get_role_display }} Console</div>
+  </div>
+</div>
+<nav class="sidebar-nav">
+  <div class="nav-section">
+    <a href="{% url 'portal:home' %}" class="{% if active_nav == 'home' %}active{% endif %}"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+    {% if user.role == 'admin' %}
+    <a href="{% url 'admin_console:home' %}" class="{% if active_nav == 'console' and not active_slug %}active{% endif %}"><i class="fa-solid fa-table-cells-large"></i> Superadmin Console</a>
+    {% endif %}
+  </div>
+
+  {% if user.role == 'admin' %}
+  <div class="nav-section">
+    <div class="nav-section-title">System</div>
+    <a href="{% url 'accounts:user_list' %}" class="{% if active_nav == 'users' %}active{% endif %}"><i class="fa-solid fa-users-gear"></i> Users &amp; Roles</a>
+    <a href="{% url 'admin_console:list' 'grade-boundaries' %}" class="{% if active_slug == 'grade-boundaries' %}active{% endif %}"><i class="fa-solid fa-ranking-star"></i> Grade Boundaries</a>
+    <a href="{% url 'admin_console:list' 'score-components' %}" class="{% if active_slug == 'score-components' %}active{% endif %}"><i class="fa-solid fa-list-ol"></i> Score Components</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Admissions</div>
+    <a href="{% url 'admin_console:applications_list' %}" class="{% if active_slug == 'applications' %}active{% endif %}"><i class="fa-solid fa-file-signature"></i> Applications</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Students &amp; Staff</div>
+    <a href="{% url 'admin_console:list' 'students' %}" class="{% if active_slug == 'students' %}active{% endif %}"><i class="fa-solid fa-user-graduate"></i> Students</a>
+    <a href="{% url 'admin_console:list' 'guardians' %}" class="{% if active_slug == 'guardians' %}active{% endif %}"><i class="fa-solid fa-people-roof"></i> Guardians</a>
+    <a href="{% url 'admin_console:list' 'teachers' %}" class="{% if active_slug == 'teachers' %}active{% endif %}"><i class="fa-solid fa-chalkboard-user"></i> Teachers</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Academics</div>
+    <a href="{% url 'admin_console:list' 'sessions' %}" class="{% if active_slug == 'sessions' %}active{% endif %}"><i class="fa-solid fa-calendar-days"></i> Sessions</a>
+    <a href="{% url 'admin_console:list' 'terms' %}" class="{% if active_slug == 'terms' %}active{% endif %}"><i class="fa-solid fa-calendar-week"></i> Terms</a>
+    <a href="{% url 'admin_console:list' 'classes' %}" class="{% if active_slug == 'classes' %}active{% endif %}"><i class="fa-solid fa-school"></i> Classes</a>
+    <a href="{% url 'admin_console:list' 'sections' %}" class="{% if active_slug == 'sections' %}active{% endif %}"><i class="fa-solid fa-people-line"></i> Sections</a>
+    <a href="{% url 'admin_console:list' 'subjects' %}" class="{% if active_slug == 'subjects' %}active{% endif %}"><i class="fa-solid fa-book"></i> Subjects</a>
+  </div>
+  {% endif %}
+
+  {% if user.role == 'admin' or user.role == 'teacher' %}
+  <div class="nav-section">
+    <div class="nav-section-title">Attendance</div>
+    <a href="{% url 'attendance:mark' %}" class="{% if active_nav == 'attendance_mark' %}active{% endif %}"><i class="fa-solid fa-clipboard-check"></i> Mark Attendance</a>
+    <a href="{% url 'attendance:records' %}" class="{% if active_nav == 'attendance_records' %}active{% endif %}"><i class="fa-solid fa-calendar-check"></i> Attendance Records</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Results</div>
+    <a href="{% url 'results:entry' %}" class="{% if active_nav == 'results_entry' %}active{% endif %}"><i class="fa-solid fa-pen-to-square"></i> Enter Results</a>
+    <a href="{% url 'results:update' %}" class="{% if active_nav == 'results_update' %}active{% endif %}"><i class="fa-solid fa-pen"></i> Update Results</a>
+    <a href="{% url 'results:broadsheet' %}" class="{% if active_nav == 'results_broadsheet' %}active{% endif %}"><i class="fa-solid fa-table-list"></i> Class Result Sheet</a>
+    <a href="{% url 'results:report_cards' %}" class="{% if active_nav == 'results_report_cards' %}active{% endif %}"><i class="fa-solid fa-id-card"></i> Report Cards</a>
+  </div>
+  {% endif %}
+
+  {% if user.role == 'admin' %}
+  <div class="nav-section">
+    <div class="nav-section-title">Fees &amp; Payments</div>
+    <a href="{% url 'admin_console:fee_structures_list' %}" class="{% if active_slug == 'fee-structures' %}active{% endif %}"><i class="fa-solid fa-sack-dollar"></i> Fee Structures</a>
+    <a href="{% url 'admin_console:invoices_list' %}" class="{% if active_slug == 'invoices' %}active{% endif %}"><i class="fa-solid fa-file-invoice-dollar"></i> Invoices</a>
+    <a href="{% url 'admin_console:payments_list' %}" class="{% if active_slug == 'payments' %}active{% endif %}"><i class="fa-solid fa-credit-card"></i> Payments</a>
+  </div>
+  {% endif %}
+
+  {% if user.role == 'parent' %}
+  <div class="nav-section">
+    <div class="nav-section-title">My Children</div>
+    <a href="{% url 'portal:home' %}"><i class="fa-solid fa-children"></i> Children</a>
+  </div>
+  {% endif %}
+
+  {% if user.role == 'student' %}
+  <div class="nav-section">
+    <div class="nav-section-title">My Academics</div>
+    <a href="{% url 'portal:home' %}"><i class="fa-solid fa-file-lines"></i> Results &amp; Attendance</a>
+  </div>
+  {% endif %}
+
+  {% if user.role == 'admin' %}
+  <div class="nav-section">
+    <div class="nav-section-title">Communication</div>
+    <a href="{% url 'admin_console:list' 'announcements' %}" class="{% if active_slug == 'announcements' %}active{% endif %}"><i class="fa-solid fa-bullhorn"></i> Announcements</a>
+    <a href="{% url 'admin_console:list' 'events' %}" class="{% if active_slug == 'events' %}active{% endif %}"><i class="fa-solid fa-calendar-star"></i> Events</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Website</div>
+    <a href="{% url 'admin_console:list' 'page-sections' %}" class="{% if active_slug == 'page-sections' %}active{% endif %}"><i class="fa-solid fa-align-left"></i> Page Text</a>
+    <a href="{% url 'admin_console:list' 'content-blocks' %}" class="{% if active_slug == 'content-blocks' %}active{% endif %}"><i class="fa-solid fa-table-cells"></i> Content Cards</a>
+    <a href="{% url 'admin_console:list' 'contact-messages' %}" class="{% if active_slug == 'contact-messages' %}active{% endif %}"><i class="fa-solid fa-envelope-open-text"></i> Contact Messages</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Insights</div>
+    <a href="{% url 'portal:reports' %}" class="{% if active_nav == 'reports' %}active{% endif %}"><i class="fa-solid fa-chart-column"></i> Reports</a>
+  </div>
+  <div class="nav-section">
+    <a href="{% url 'portal:settings' %}" class="{% if active_nav == 'settings' %}active{% endif %}"><i class="fa-solid fa-gear"></i> Settings</a>
+  </div>
+  {% endif %}
+</nav>

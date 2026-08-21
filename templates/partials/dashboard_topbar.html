@@ -1,0 +1,19 @@
+<div class="left">
+  <button class="sidebar-toggle"><i class="fa-solid fa-bars"></i></button>
+  <div>
+    <h1 style="font-size:1.25rem;margin:0;">{% block dash_title %}Dashboard{% endblock %}</h1>
+    {% block dash_subtitle %}{% endblock %}
+  </div>
+</div>
+<div class="right">
+  <a href="{% url 'website:home' %}" class="topbar-icon-btn" title="View website"><i class="fa-solid fa-globe"></i></a>
+  <div class="topbar-profile" onclick="document.getElementById('profileDropdown').classList.toggle('open')">
+    <div class="avatar">{{ user.first_name|slice:":1" }}{{ user.last_name|slice:":1" }}</div>
+    <div class="info"><strong>{{ user.get_full_name|default:user.username }}</strong><span>{{ user.get_role_display }}</span></div>
+    <i class="fa-solid fa-chevron-down chev"></i>
+  </div>
+  <div class="dropdown-menu" id="profileDropdown" style="right:26px;">
+    <div class="dd-header">Signed in as <strong>{{ user.email }}</strong></div>
+    <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button type="submit" style="width:100%;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</button></form>
+  </div>
+</div>

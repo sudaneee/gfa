@@ -1,0 +1,59 @@
+{% extends "base_public.html" %}
+{% block title %}Application Fee — {{ application.application_number }}{% endblock %}
+{% block page_content %}
+<section class="page-header" style="padding:40px 0;">
+  <div class="container"><h1>Application Fee</h1><p>{{ application.full_name }} — {{ application.application_number }}</p></div>
+</section>
+
+<section class="section-sm">
+  <div class="container" style="max-width:640px;">
+    {% if invoice %}
+    <div class="card">
+      <div class="card-header"><h3>Invoice {{ invoice.invoice_number }}</h3>
+        <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partial' %}warning{% else %}danger{% endif %}">{{ invoice.get_status_display }}</span>
+      </div>
+      <div class="card-body">
+        <table class="data-table" style="min-width:0;"><tbody>
+          <tr><td>Application Fee</td><td style="text-align:right;">₦{{ invoice.amount|floatformat:2 }}</td></tr>
+          <tr><td>Amount Paid</td><td style="text-align:right;color:var(--success);">₦{{ invoice.amount_paid|floatformat:2 }}</td></tr>
+          <tr style="font-weight:800;border-top:2px solid var(--gray-200);"><td>Balance</td><td style="text-align:right;">₦{{ invoice.balance|floatformat:2 }}</td></tr>
+        </tbody></table>
+
+        {% if invoice.balance > 0 %}
+        <form method="post" action="{% url 'payments:initiate_application_payment' application.application_number %}" class="mt-16">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-block btn-lg"><i class="fa-solid fa-credit-card"></i> Pay ₦{{ invoice.balance|floatformat:2 }} with ZainPay</button>
+        </form>
+        <div class="alert alert-info mt-16">
+          <i class="fa-solid fa-building-columns"></i>
+          <div>Prefer bank transfer? Pay to <strong>{{ school.bank_name }}</strong>, account <strong>{{ school.bank_account_number }}</strong> ({{ school.bank_account_name }}) — include <strong>{{ application.full_name }}</strong> in the transfer narration, then contact the school office to confirm.</div>
+        </div>
+        {% else %}
+        <div class="alert alert-success mt-16"><i class="fa-solid fa-circle-check"></i> Application fee fully paid. Thank you!</div>
+        {% endif %}
+
+        {% if invoice.payments.all %}
+        <h4 class="mt-24">Payment History</h4>
+        <table class="data-table"><thead><tr><th>Reference</th><th>Amount</th><th>Method</th><th>Status</th><th></th></tr></thead><tbody>
+          {% for p in invoice.payments.all %}
+          <tr>
+            <td>{{ p.reference }}</td><td>₦{{ p.amount|floatformat:2 }}</td><td>{{ p.get_gateway_display }}</td>
+            <td><span class="badge badge-{% if p.status == 'success' %}success{% elif p.status == 'pending' %}warning{% else %}danger{% endif %}">{{ p.get_status_display }}</span></td>
+            <td>{% if p.status == 'pending' %}
+              <form method="post" action="{% url 'payments:check_application_payment_status' application.application_number p.pk %}">
+                {% csrf_token %}<button class="btn btn-sm btn-secondary" type="submit">Check Status</button>
+              </form>
+            {% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody></table>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state card"><i class="fa-solid fa-file-invoice"></i><h4>No invoice found</h4></div>
+    {% endif %}
+    <p class="text-center mt-24"><a href="{% url 'admissions:track' %}?ref={{ application.application_number }}">Back to Application Status</a></p>
+  </div>
+</section>
+{% endblock %}

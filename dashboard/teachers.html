@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teachers & Staff — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Teachers & Staff', subtitle: 'Manage staff directory, departments and class assignments.' });</script>
+
+<template id="pageTemplate">
+  <div class="page-title-row"><div></div><button class="btn btn-primary" id="addTeacherBtn"><i class="fa-solid fa-user-plus"></i> Add Teacher</button></div>
+  <div class="card"><div class="card-body">
+    <div class="filters-bar">
+      <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i><input type="text" id="searchInput" placeholder="Search by name, staff ID or department..."></div>
+      <select id="deptFilter"><option value="">All Departments</option></select>
+    </div>
+    <div class="grid-3" id="teacherGrid"></div>
+    <div id="emptyState" class="empty-state" style="display:none;"><i class="fa-solid fa-chalkboard-user"></i><h4>No staff found</h4></div>
+  </div></div>
+</template>
+
+<div class="modal-overlay" id="teacherModal">
+  <div class="modal">
+    <div class="modal-header"><h3>Add Teacher</h3><button class="modal-close" onclick="closeModal('teacherModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="teacherForm">
+        <div class="form-group"><label>Full Name <span class="req">*</span></label><input type="text" id="tName" required></div>
+        <div class="form-row">
+          <div class="form-group"><label>Gender <span class="req">*</span></label><select id="tGender" required><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+          <div class="form-group"><label>Department <span class="req">*</span></label><select id="tDept" required></select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Phone <span class="req">*</span></label><input type="tel" id="tPhone" required></div>
+          <div class="form-group"><label>Email <span class="req">*</span></label><input type="email" id="tEmail" required></div>
+        </div>
+        <div class="form-group"><label>Qualification</label><input type="text" id="tQualification" placeholder="e.g. B.Sc. Ed."></div>
+      </form>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('teacherModal')">Cancel</button><button class="btn btn-primary" id="saveTeacherBtn">Save Teacher</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="teacherProfileModal">
+  <div class="modal modal-lg"><div class="modal-header"><h3>Staff Profile</h3><button class="modal-close" onclick="closeModal('teacherProfileModal')">&times;</button></div>
+  <div class="modal-body" id="teacherProfileBody"></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('teacherProfileModal')">Close</button></div></div>
+</div>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+
+function populateOptions() {
+  const deptFilter = document.getElementById('deptFilter');
+  deptFilter.innerHTML += DEPARTMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
+  document.getElementById('tDept').innerHTML = '<option value="">Select</option>' + DEPARTMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
+}
+
+function renderGrid() {
+  const db = DB.load();
+  const term = document.getElementById('searchInput').value.trim().toLowerCase();
+  const dept = document.getElementById('deptFilter').value;
+  const list = db.teachers.filter(t => {
+    if (dept && t.department !== dept) return false;
+    if (term && !(`${t.name} ${t.staffId} ${t.department}`.toLowerCase().includes(term))) return false;
+    return true;
+  });
+  document.getElementById('emptyState').style.display = list.length ? 'none' : 'block';
+  document.getElementById('teacherGrid').innerHTML = list.map(t => `
+    <div class="card card-body text-center">
+      <div class="avatar avatar-lg" style="margin:0 auto 14px;">${t.name.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
+      <h4 class="mb-0">${escapeHtml(t.name)}</h4>
+      <p class="text-muted text-sm">${t.staffId}</p>
+      <span class="badge badge-purple mb-16">${t.department}</span>
+      <p class="text-sm text-muted">${(t.subjects||[]).join(', ')}</p>
+      <button class="btn btn-sm btn-secondary btn-block" onclick="viewTeacher('${t.id}')"><i class="fa-solid fa-eye"></i> View Profile</button>
+    </div>`).join('');
+}
+
+function viewTeacher(id) {
+  const db = DB.load();
+  const t = db.teachers.find(t => t.id === id);
+  if (!t) return;
+  document.getElementById('teacherProfileBody').innerHTML = `
+    <div class="flex gap-16 mb-24" style="align-items:center;">
+      <div class="avatar avatar-lg">${t.name.split(' ').map(n=>n[0]).join('').slice(0,2)}</div>
+      <div><h3 class="mb-0">${escapeHtml(t.name)}</h3><p class="text-muted mb-0">${t.staffId} &middot; ${t.department}</p></div>
+    </div>
+    <div class="review-block"><h5>Employment Information</h5><div class="review-grid">
+      <div class="item"><span class="k">Gender</span><span class="v">${t.gender}</span></div>
+      <div class="item"><span class="k">Qualification</span><span class="v">${escapeHtml(t.qualification || '-')}</span></div>
+      <div class="item"><span class="k">Employment Date</span><span class="v">${formatDate(t.employmentDate)}</span></div>
+      <div class="item"><span class="k">Status</span><span class="v"><span class="badge badge-success">${t.status}</span></span></div>
+      <div class="item"><span class="k">Phone</span><span class="v">${escapeHtml(t.phone)}</span></div>
+      <div class="item"><span class="k">Email</span><span class="v">${escapeHtml(t.email)}</span></div>
+    </div></div>
+    <div class="review-block"><h5>Teaching Assignment</h5><div class="card-body" style="padding:16px;">
+      <p class="mb-8"><strong>Subjects Taught:</strong> ${(t.subjects||[]).join(', ') || '-'}</p>
+      <p class="mb-0"><strong>Classes Assigned:</strong> ${(t.classes||[]).join(', ') || '-'}</p>
+    </div></div>`;
+  openModal('teacherProfileModal');
+}
+
+function saveTeacher() {
+  const form = document.getElementById('teacherForm');
+  if (!form.checkValidity()) { form.reportValidity(); return; }
+  DB.update(db => {
+    const count = db.teachers.length + 1;
+    db.teachers.push({
+      id: `TCH-NEW-${Date.now()}`, staffId: `GFA/STAFF/${String(count + 20).padStart(3,'0')}`,
+      name: document.getElementById('tName').value.trim(), gender: document.getElementById('tGender').value,
+      department: document.getElementById('tDept').value, subjects: [], classes: [],
+      phone: document.getElementById('tPhone').value.trim(), email: document.getElementById('tEmail').value.trim(),
+      qualification: document.getElementById('tQualification').value.trim(), employmentDate: new Date().toISOString().slice(0,10), status: 'Active'
+    });
+  });
+  toast('Teacher added successfully.', 'success');
+  closeModal('teacherModal');
+  renderGrid();
+}
+
+document.getElementById('addTeacherBtn').addEventListener('click', () => { document.getElementById('teacherForm').reset(); openModal('teacherModal'); });
+document.getElementById('saveTeacherBtn').addEventListener('click', saveTeacher);
+document.getElementById('searchInput').addEventListener('input', debounce(renderGrid, 150));
+document.getElementById('deptFilter').addEventListener('change', renderGrid);
+
+populateOptions();
+renderGrid();
+if (new URLSearchParams(window.location.search).get('add') === '1') { document.getElementById('teacherForm').reset(); openModal('teacherModal'); }
+</script>
+</body>
+</html>

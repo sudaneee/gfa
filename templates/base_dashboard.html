@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load static %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">{% endblock %}
+{% block body_class %}dash-body{% endblock %}
+
+{% block content %}
+<div class="dash-shell">
+  <div class="sidebar-overlay"></div>
+  <aside class="sidebar">{% include "partials/dashboard_sidebar.html" %}</aside>
+  <div class="dash-main">
+    <header class="dash-topbar">{% include "partials/dashboard_topbar.html" %}</header>
+    <main class="dash-content">{% block dash_content %}{% endblock %}</main>
+  </div>
+</div>
+
+<script>
+  document.querySelector('.sidebar-toggle')?.addEventListener('click', () => {
+    document.querySelector('.sidebar').classList.add('open');
+    document.querySelector('.sidebar-overlay').classList.add('open');
+  });
+  document.querySelector('.sidebar-overlay')?.addEventListener('click', () => {
+    document.querySelector('.sidebar').classList.remove('open');
+    document.querySelector('.sidebar-overlay').classList.remove('open');
+  });
+  document.addEventListener('click', (e) => {
+    const dd = document.getElementById('profileDropdown');
+    if (dd && !dd.contains(e.target) && !e.target.closest('.topbar-profile')) dd.classList.remove('open');
+  });
+</script>
+{% endblock %}

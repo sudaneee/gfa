@@ -1,0 +1,46 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Fee Structures — {{ school.name }}{% endblock %}
+{% block dash_title %}Fee Structures{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">One priced schedule per Session + Fee Band + New/Continuing. Once a structure has generated an invoice it locks permanently — create a new one for the next session instead of editing a used one.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card"><div class="card-body">
+  <form method="get" class="filters-bar mb-16">
+    <select name="session">
+      <option value="">All sessions</option>
+      {% for s in sessions %}<option value="{{ s.pk }}" {% if session == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+    </select>
+    <select name="locked">
+      <option value="">All</option>
+      <option value="no" {% if locked == 'no' %}selected{% endif %}>Editable (not yet used)</option>
+      <option value="yes" {% if locked == 'yes' %}selected{% endif %}>Locked (in use)</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-magnifying-glass"></i> Filter</button>
+    {% if session or locked %}<a href="{% url 'admin_console:fee_structures_list' %}" class="btn btn-secondary btn-sm">Clear</a>{% endif %}
+    <a href="{% url 'admin_console:fee_structure_create' %}" class="btn btn-primary btn-sm ml-auto"><i class="fa-solid fa-plus"></i> Add Fee Structure</a>
+  </form>
+
+  <div class="table-wrap"><table class="data-table">
+    <thead><tr><th>Session</th><th>Fee Band</th><th>Category</th><th>Total</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for s in structures %}
+      <tr>
+        <td>{{ s.session.name }}</td>
+        <td>{{ s.fee_band.name }}</td>
+        <td>{{ s.get_student_category_display }}</td>
+        <td>₦{{ s.total_amount|floatformat:0 }}</td>
+        <td>{% if s.is_locked %}<span class="badge badge-gray">Locked</span>{% else %}<span class="badge badge-success">Editable</span>{% endif %}</td>
+        <td class="text-right">
+          {% if s.is_locked %}
+          <a class="btn btn-secondary btn-sm" href="{% url 'admin_console:fee_structure_edit' s.pk %}"><i class="fa-solid fa-eye"></i> View</a>
+          {% else %}
+          <a class="btn btn-secondary btn-sm" href="{% url 'admin_console:fee_structure_edit' s.pk %}"><i class="fa-solid fa-pen"></i> Edit</a>
+          <a class="btn btn-secondary btn-sm" href="{% url 'admin_console:fee_structure_delete' s.pk %}"><i class="fa-solid fa-trash"></i></a>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="text-muted">No fee structures match that filter.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div></div>
+{% endblock %}

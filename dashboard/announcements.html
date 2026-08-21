@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Announcements & Events — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Communication', subtitle: 'Create announcements and manage school events.' });</script>
+
+<template id="pageTemplate">
+  <div class="tabs mb-24">
+    <button class="tab-btn" data-tabkey="announcements">Announcements</button>
+    <button class="tab-btn" data-tabkey="events">Events</button>
+  </div>
+
+  <div data-tabpanel="announcements">
+    <div class="page-title-row"><div></div><button class="btn btn-primary" id="addAnnBtn"><i class="fa-solid fa-plus"></i> New Announcement</button></div>
+    <div class="card"><div class="card-body">
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Title</th><th>Audience</th><th>Date</th><th>Status</th></tr></thead>
+        <tbody id="annTableBody"></tbody>
+      </table></div>
+    </div></div>
+  </div>
+
+  <div data-tabpanel="events" style="display:none;">
+    <div class="news-grid" id="eventsGrid"></div>
+  </div>
+</template>
+
+<div class="modal-overlay" id="annModal">
+  <div class="modal"><div class="modal-header"><h3>New Announcement</h3><button class="modal-close" onclick="closeModal('annModal')">&times;</button></div>
+  <div class="modal-body">
+    <form id="annForm">
+      <div class="form-group"><label>Title <span class="req">*</span></label><input type="text" id="annTitle" required></div>
+      <div class="form-group"><label>Content <span class="req">*</span></label><textarea id="annContent" required></textarea></div>
+      <div class="form-group"><label>Audience</label><select id="annAudience"><option>All Parents</option><option>Students</option><option>Teachers</option><option>Staff</option></select></div>
+    </form>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('annModal')">Cancel</button><button class="btn btn-primary" id="saveAnnBtn">Publish Announcement</button></div></div>
+</div>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+
+function renderAnnouncements() {
+  const db = DB.load();
+  document.getElementById('annTableBody').innerHTML = db.announcements.slice().reverse().map(a => `
+    <tr><td><strong>${escapeHtml(a.title)}</strong><br><span class="text-muted text-sm">${escapeHtml(a.content.slice(0,80))}...</span></td>
+    <td><span class="badge badge-purple">${a.audience}</span></td><td>${formatDate(a.date)}</td><td><span class="badge badge-success">${a.status}</span></td></tr>`).join('');
+}
+function renderEvents() {
+  const db = DB.load();
+  const icons = { Sports: 'fa-futbol', Debate: 'fa-people-arrows', Cultural: 'fa-masks-theater', Meeting: 'fa-people-group', Academic: 'fa-graduation-cap' };
+  document.getElementById('eventsGrid').innerHTML = db.events.map(e => `
+    <div class="news-card"><div class="news-img"><i class="fa-solid ${icons[e.category]||'fa-calendar'}"></i></div>
+    <div class="body"><span class="tag">${e.category}</span><h4>${e.title}</h4><p class="text-muted text-sm">${e.description}</p><div class="meta"><i class="fa-regular fa-calendar"></i> ${formatDate(e.date)}</div></div></div>`).join('');
+}
+
+document.getElementById('addAnnBtn').addEventListener('click', () => { document.getElementById('annForm').reset(); openModal('annModal'); });
+document.getElementById('saveAnnBtn').addEventListener('click', () => {
+  const form = document.getElementById('annForm');
+  if (!form.checkValidity()) { form.reportValidity(); return; }
+  DB.update(db => {
+    db.announcements.push({ id: `ANN-${Date.now()}`, title: document.getElementById('annTitle').value.trim(), content: document.getElementById('annContent').value.trim(), audience: document.getElementById('annAudience').value, date: new Date().toISOString().slice(0,10), status: 'Published' });
+  });
+  toast('Announcement published successfully.', 'success');
+  closeModal('annModal');
+  renderAnnouncements();
+});
+
+renderAnnouncements();
+renderEvents();
+initHashTabs('announcements');
+if (new URLSearchParams(window.location.search).get('add') === '1') { document.getElementById('annForm').reset(); openModal('annModal'); }
+</script>
+</body>
+</html>

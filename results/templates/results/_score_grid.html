@@ -1,0 +1,32 @@
+{% load result_extras %}
+{% comment %}
+The score-entry table shared by entry.html and update.html. This grid is
+for TEACHERS entering/correcting marks only — it is never shown to a
+parent/student/admin as "the result" (that's always the individual report
+card, see report_card.html). Context: rows, components, existing_only.
+{% endcomment %}
+<div class="table-wrap"><table class="data-table" id="resultsTable">
+  <thead><tr>
+    <th>Admission No.</th><th>Name</th>
+    {% for c in components %}<th>{{ c.name }} (0-{{ c.max_score }})</th>{% endfor %}
+    <th>Exam (0-70)</th><th>Total</th><th>Grade</th>
+  </tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr data-total-row>
+      <td>{{ row.student.admission_number }}</td><td>{{ row.student.full_name }}</td>
+      {% for c in components %}
+      <td><input type="number" min="0" max="{{ c.max_score }}" name="comp_{{ c.pk }}_{{ row.student.pk }}"
+                 value="{{ row.comp_values|dictattr:c.pk|default:'' }}" style="width:70px;" data-comp data-max="{{ c.max_score }}"></td>
+      {% endfor %}
+      <td><input type="number" min="0" max="70" name="exam_{{ row.student.pk }}" value="{{ row.exam }}" style="width:80px;" data-exam data-max="70"></td>
+      <td data-total-cell><strong>{{ row.total }}</strong></td>
+      <td data-grade-cell><span class="badge badge-gray">{{ row.grade }}</span></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="{{ components|length|add:5 }}" class="text-muted">
+      {% if existing_only %}No results have been entered yet for this selection.{% else %}No active students in this class.{% endif %}
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table></div>

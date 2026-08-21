@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Applications — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Admissions — Applications', subtitle: 'Review, shortlist, approve or reject applications for the 2026/2027 session.' });</script>
+
+<template id="pageTemplate">
+  <div class="tabs mb-24" id="statusTabs">
+    <button class="tab-btn active" data-status="All">All</button>
+    <button class="tab-btn" data-status="Pending">Pending</button>
+    <button class="tab-btn" data-status="Under Review">Under Review</button>
+    <button class="tab-btn" data-status="Shortlisted">Shortlisted</button>
+    <button class="tab-btn" data-status="Interview">Interview</button>
+    <button class="tab-btn" data-status="Approved">Approved</button>
+    <button class="tab-btn" data-status="Admitted">Admitted</button>
+    <button class="tab-btn" data-status="Rejected">Rejected</button>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="filters-bar">
+        <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i><input type="text" id="searchInput" placeholder="Search by name, application no. or phone..."></div>
+        <select id="levelFilter"><option value="">All Levels</option></select>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>App No.</th><th>Applicant</th><th>Gender</th><th>Level</th><th>Parent/Guardian</th><th>Phone</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="appTableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none;"><i class="fa-solid fa-inbox"></i><h4>No applications found</h4><p>Try a different filter or search term.</p></div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+</template>
+
+<!-- View / Review Modal -->
+<div class="modal-overlay" id="viewModal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3>Application Details</h3><button class="modal-close" onclick="closeModal('viewModal')">&times;</button></div>
+    <div class="modal-body" id="viewModalBody"></div>
+    <div class="modal-footer" id="viewModalFooter"></div>
+  </div>
+</div>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+
+let activeStatus = 'All';
+let currentPage = 1;
+const perPage = 8;
+
+function initFilters() {
+  const levelFilter = document.getElementById('levelFilter');
+  levelFilter.innerHTML += LEVELS.map(l => `<option value="${l}">${l}</option>`).join('');
+  document.querySelectorAll('#statusTabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#statusTabs .tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeStatus = btn.dataset.status;
+      currentPage = 1;
+      renderTable();
+    });
+  });
+  document.getElementById('searchInput').addEventListener('input', debounce(() => { currentPage = 1; renderTable(); }, 150));
+  levelFilter.addEventListener('change', () => { currentPage = 1; renderTable(); });
+}
+
+function getFilteredApps() {
+  const db = DB.load();
+  const term = document.getElementById('searchInput').value.trim().toLowerCase();
+  const level = document.getElementById('levelFilter').value;
+  return db.applications.filter(a => {
+    if (activeStatus !== 'All' && a.status !== activeStatus) return false;
+    if (level && a.level !== level) return false;
+    if (term) {
+      const hay = `${a.firstName} ${a.lastName} ${a.applicationNo} ${a.phone}`.toLowerCase();
+      if (!hay.includes(term)) return false;
+    }
+    return true;
+  }).sort((a, b) => new Date(b.applicationDate) - new Date(a.applicationDate));
+}
+
+function renderTable() {
+  const all = getFilteredApps();
+  const totalPages = Math.max(1, Math.ceil(all.length / perPage));
+  currentPage = Math.min(currentPage, totalPages);
+  const pageItems = all.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+  document.getElementById('emptyState').style.display = all.length ? 'none' : 'block';
+  document.getElementById('appTableBody').innerHTML = pageItems.map(a => `
+    <tr>
+      <td><strong>${a.applicationNo}</strong></td>
+      <td>${escapeHtml(a.firstName)} ${escapeHtml(a.lastName)}</td>
+      <td>${a.gender}</td>
+      <td>${escapeHtml(a.applyingFor)}</td>
+      <td>${escapeHtml(a.parentName)}</td>
+      <td>${escapeHtml(a.phone)}</td>
+      <td>${formatDate(a.applicationDate)}</td>
+      <td><span class="badge badge-${statusBadgeClass(a.status)}">${a.status}</span></td>
+      <td>
+        <button class="btn btn-sm btn-secondary" onclick="viewApplication('${a.applicationNo}')"><i class="fa-solid fa-eye"></i> View</button>
+      </td>
+    </tr>`).join('');
+
+  document.getElementById('pagination').innerHTML = Array.from({ length: totalPages }, (_, i) => i + 1)
+    .map(p => `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goToPage(${p})">${p}</button>`).join('');
+}
+function goToPage(p) { currentPage = p; renderTable(); }
+
+function viewApplication(appNo) {
+  const db = DB.load();
+  const app = db.applications.find(a => a.applicationNo === appNo);
+  if (!app) return;
+  document.getElementById('viewModalBody').innerHTML = `
+    <div class="flex-between mb-16"><h4 class="mb-0">${escapeHtml(app.firstName)} ${escapeHtml(app.middleName || '')} ${escapeHtml(app.lastName)}</h4><span class="badge badge-${statusBadgeClass(app.status)}">${app.status}</span></div>
+    <div class="review-block"><h5>Applicant Information</h5><div class="review-grid">
+      <div class="item"><span class="k">Application No.</span><span class="v">${app.applicationNo}</span></div>
+      <div class="item"><span class="k">Date of Birth</span><span class="v">${formatDate(app.dob)}</span></div>
+      <div class="item"><span class="k">Gender</span><span class="v">${app.gender}</span></div>
+      <div class="item"><span class="k">State / LGA</span><span class="v">${escapeHtml(app.state)} / ${escapeHtml(app.lga)}</span></div>
+      <div class="item"><span class="k">Applying For</span><span class="v">${escapeHtml(app.applyingFor)}</span></div>
+      <div class="item"><span class="k">Previous School</span><span class="v">${escapeHtml(app.previousSchool || 'First time in school')}</span></div>
+    </div></div>
+    <div class="review-block"><h5>Parent / Guardian</h5><div class="review-grid">
+      <div class="item"><span class="k">Name</span><span class="v">${escapeHtml(app.parentName)}</span></div>
+      <div class="item"><span class="k">Relationship</span><span class="v">${app.relationship}</span></div>
+      <div class="item"><span class="k">Phone</span><span class="v">${escapeHtml(app.phone)}</span></div>
+      <div class="item"><span class="k">Email</span><span class="v">${escapeHtml(app.email)}</span></div>
+    </div></div>
+    <div class="review-block"><h5>Documents Submitted</h5><div class="review-grid">
+      <div class="item"><span class="k">Passport</span><span class="v">${app.documents.passport ? '<i class=\"fa-solid fa-circle-check\" style=\"color:var(--success)\"></i> Uploaded' : 'Missing'}</span></div>
+      <div class="item"><span class="k">Birth Certificate</span><span class="v">${app.documents.birthCert ? '<i class=\"fa-solid fa-circle-check\" style=\"color:var(--success)\"></i> Uploaded' : 'Missing'}</span></div>
+    </div></div>
+    <div class="review-block"><h5>Status Timeline</h5><div class="card-body" style="padding:16px;">
+      ${app.timeline.map(t => `<div class="flex gap-12 mb-8"><i class="fa-solid fa-circle-check" style="color:var(--success);"></i> <strong>${t.stage}</strong> <span class="text-muted text-sm">— ${formatDate(t.date)}</span></div>`).join('')}
+    </div></div>`;
+
+  document.getElementById('viewModalFooter').innerHTML = `
+    <button class="btn btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
+    <button class="btn btn-secondary" onclick="changeStatus('${app.applicationNo}','Under Review')">Mark Under Review</button>
+    <button class="btn btn-secondary" onclick="changeStatus('${app.applicationNo}','Shortlisted')">Shortlist</button>
+    <button class="btn btn-danger" onclick="changeStatus('${app.applicationNo}','Rejected')">Reject</button>
+    <button class="btn btn-success" onclick="changeStatus('${app.applicationNo}','Approved')">Approve</button>`;
+  openModal('viewModal');
+}
+
+function changeStatus(appNo, newStatus) {
+  const db = DB.load();
+  const app = db.applications.find(a => a.applicationNo === appNo);
+  if (!app) return;
+  app.status = newStatus;
+  app.timeline.push({ stage: newStatus === 'Approved' ? 'Approved' : newStatus, date: new Date().toISOString().slice(0, 10) });
+  DB.save(db);
+  toast(`Application ${appNo} marked as ${newStatus}.`, 'success');
+  closeModal('viewModal');
+  renderTable();
+}
+
+initFilters();
+renderTable();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Superadmin Console — {{ school.name }}{% endblock %}
+{% block dash_title %}Superadmin Console{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">Every module in one place — search, filter, and manage records without leaving the app.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card mb-24"><div class="card-header"><h3>Admissions &amp; Finance</h3></div><div class="card-body">
+  <div class="quick-actions-grid">
+    <a class="quick-action" href="{% url 'admin_console:applications_list' %}"><i class="fa-solid fa-file-signature"></i><span>Applications</span></a>
+    <a class="quick-action" href="{% url 'admin_console:invoices_list' %}"><i class="fa-solid fa-file-invoice-dollar"></i><span>Invoices</span></a>
+    <a class="quick-action" href="{% url 'admin_console:payments_list' %}"><i class="fa-solid fa-credit-card"></i><span>Payments</span></a>
+    <a class="quick-action" href="{% url 'admin_console:fee_structures_list' %}"><i class="fa-solid fa-sack-dollar"></i><span>Fee Structures</span></a>
+    <a class="quick-action" href="{% url 'accounts:user_list' %}"><i class="fa-solid fa-users-gear"></i><span>Users &amp; Roles</span></a>
+  </div>
+</div></div>
+
+{% for category, entries in categories.items %}
+<div class="card mb-24"><div class="card-header"><h3>{{ category }}</h3></div><div class="card-body">
+  <div class="quick-actions-grid">
+    {% for entry in entries %}
+    <a class="quick-action" href="{% url 'admin_console:list' entry.slug %}"><i class="{{ entry.icon }}"></i><span>{{ entry.label }}</span></a>
+    {% endfor %}
+  </div>
+</div></div>
+{% endfor %}
+{% endblock %}

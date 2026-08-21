@@ -1,0 +1,30 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Report Cards</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+<link rel="stylesheet" href="{% static 'css/website.css' %}">
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+</head>
+<body>
+{% comment %}
+PDF-only document — one _report_card_body.html per student, wrapped in a
+page-break container (except the last) so WeasyPrint renders one combined
+PDF with each student's report card as its own page-section. Same
+technique giia proves works (src/display_class_results.html, its
+`.result-section { page-break-after: always; }` rule), applied here to
+genuinely multiple students in a single render instead of giia's
+one-render-per-student-then-zip approach.
+{% endcomment %}
+{% for ctx in contexts %}
+<div class="{% if not forloop.last %}rc-page-break{% endif %}">
+  {% include 'results/_report_card_body.html' with student=ctx.student term=ctx.term results=ctx.results total=ctx.total average=ctx.average overall_grade=ctx.overall_grade attendance_rate=ctx.attendance_rate position=ctx.position class_size=ctx.class_size today=ctx.today components=ctx.components %}
+</div>
+{% empty %}
+<div class="empty-state"><h4>No active students in this class.</h4></div>
+{% endfor %}
+</body>
+</html>

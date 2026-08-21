@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Results Management — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Results Management', subtitle: 'Enter continuous assessment and examination scores. Grades are calculated automatically.' });</script>
+
+<template id="pageTemplate">
+  <div class="card mb-24"><div class="card-body">
+    <div class="filters-bar">
+      <select id="rClass"></select>
+      <select id="rSubject"></select>
+      <select id="rTerm"><option>First Term</option><option>Second Term</option><option>Third Term</option></select>
+      <button class="btn btn-primary" id="loadResultsBtn"><i class="fa-solid fa-arrow-rotate-right"></i> Load Class</button>
+      <button class="btn btn-secondary" id="viewReportBtn"><i class="fa-solid fa-file-lines"></i> Preview Report Card</button>
+    </div>
+    <div class="alert alert-info"><i class="fa-solid fa-circle-info"></i> Grade boundaries: A = 70–100, B = 60–69, C = 50–59, D = 45–49, E = 40–44, F = 0–39. CA max 30, Exam max 70.</div>
+    <div class="table-wrap"><table class="data-table" id="resultsTable">
+      <thead><tr><th>Admission No.</th><th>Name</th><th>CA (0-30)</th><th>Exam (0-70)</th><th>Total</th><th>Grade</th><th>Remark</th></tr></thead>
+      <tbody id="resultsTableBody"></tbody>
+    </table></div>
+    <div class="flex-between mt-16">
+      <span class="text-muted text-sm" id="resultsSummary"></span>
+      <button class="btn btn-primary" id="saveResultsBtn"><i class="fa-solid fa-floppy-disk"></i> Save Results</button>
+    </div>
+  </div></div>
+</template>
+
+<div class="modal-overlay" id="reportModal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3>Report Card Preview</h3><button class="modal-close" onclick="closeModal('reportModal')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Select Student</label><select id="reportStudentSelect"></select></div>
+      <div id="reportCardContainer"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('reportModal')">Close</button><button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Report Card</button></div>
+  </div>
+</div>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+const db = DB.load();
+
+document.getElementById('rClass').innerHTML = db.classes.flatMap(c => c.sections.map(s => `<option value="${c.name}|${s}">${c.name}${s}</option>`)).join('');
+function updateSubjectOptions() {
+  const [cls] = document.getElementById('rClass').value.split('|');
+  const level = db.classes.find(c => c.name === cls)?.level || 'Primary';
+  document.getElementById('rSubject').innerHTML = (SUBJECTS_BY_LEVEL[level] || SUBJECTS_BY_LEVEL['Primary']).map(s => `<option>${s}</option>`).join('');
+}
+document.getElementById('rClass').addEventListener('change', updateSubjectOptions);
+updateSubjectOptions();
+
+function computeRow(ca, exam) {
+  ca = Math.min(30, Math.max(0, Number(ca) || 0));
+  exam = Math.min(70, Math.max(0, Number(exam) || 0));
+  const total = ca + exam;
+  const g = gradeFor(total);
+  return { ca, exam, total, grade: g.grade, remark: g.remark };
+}
+
+function loadResultsTable() {
+  const [cls, section] = document.getElementById('rClass').value.split('|');
+  const subject = document.getElementById('rSubject').value;
+  const term = document.getElementById('rTerm').value;
+  const students = db.students.filter(s => s.class === cls && s.section === section && s.status === 'Active');
+  document.getElementById('resultsTableBody').innerHTML = students.map(s => {
+    const existing = db.results.find(r => r.studentId === s.id && r.subject === subject && r.term === term);
+    const ca = existing ? existing.ca : '';
+    const exam = existing ? existing.exam : '';
+    const computed = computeRow(ca || 0, exam || 0);
+    return `<tr data-student="${s.id}">
+      <td>${s.admissionNo}</td><td>${fullName(s)}</td>
+      <td><input type="number" min="0" max="30" class="ca-input" value="${ca}" style="width:80px;"></td>
+      <td><input type="number" min="0" max="70" class="exam-input" value="${exam}" style="width:80px;"></td>
+      <td class="total-cell"><strong>${computed.total}</strong></td>
+      <td class="grade-cell"><span class="badge badge-${computed.grade==='F'?'danger':computed.grade==='A'?'success':'gray'}">${computed.grade}</span></td>
+      <td class="remark-cell text-muted">${computed.remark}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" class="text-muted">No active students in this class.</td></tr>';
+  document.getElementById('resultsSummary').textContent = `${students.length} students — ${subject}, ${term}`;
+  attachLiveCalc();
+}
+
+function attachLiveCalc() {
+  document.querySelectorAll('#resultsTableBody tr').forEach(row => {
+    const caInput = row.querySelector('.ca-input');
+    const examInput = row.querySelector('.exam-input');
+    if (!caInput) return;
+    function recalc() {
+      const computed = computeRow(caInput.value, examInput.value);
+      row.querySelector('.total-cell').innerHTML = `<strong>${computed.total}</strong>`;
+      row.querySelector('.grade-cell').innerHTML = `<span class="badge badge-${computed.grade==='F'?'danger':computed.grade==='A'?'success':'gray'}">${computed.grade}</span>`;
+      row.querySelector('.remark-cell').textContent = computed.remark;
+    }
+    caInput.addEventListener('input', recalc);
+    examInput.addEventListener('input', recalc);
+  });
+}
+
+function saveResults() {
+  const subject = document.getElementById('rSubject').value;
+  const term = document.getElementById('rTerm').value;
+  const rows = document.querySelectorAll('#resultsTableBody tr[data-student]');
+  DB.update(dbw => {
+    rows.forEach(row => {
+      const studentId = row.dataset.student;
+      const ca = Number(row.querySelector('.ca-input').value) || 0;
+      const exam = Number(row.querySelector('.exam-input').value) || 0;
+      const computed = computeRow(ca, exam);
+      const g = gradeFor(computed.total);
+      const idx = dbw.results.findIndex(r => r.studentId === studentId && r.subject === subject && r.term === term);
+      const record = { studentId, session: CURRENT_SESSION, term, subject, ca: computed.ca, exam: computed.exam, total: computed.total, grade: g.grade, point: g.point, remark: g.remark, teacherId: session.refId || 'TCH-DEMO-01' };
+      if (idx > -1) dbw.results[idx] = record; else dbw.results.push(record);
+    });
+  });
+  toast('Results saved and grades calculated successfully.', 'success');
+}
+
+// Report card preview
+function populateReportStudents() {
+  const [cls, section] = document.getElementById('rClass').value.split('|');
+  const dbNow = DB.load();
+  const students = dbNow.students.filter(s => s.class === cls && s.section === section && s.status === 'Active');
+  document.getElementById('reportStudentSelect').innerHTML = students.map(s => `<option value="${s.id}">${fullName(s)} (${s.admissionNo})</option>`).join('');
+  renderReportCard();
+}
+
+function renderReportCard() {
+  const dbNow = DB.load();
+  const studentId = document.getElementById('reportStudentSelect').value;
+  const s = dbNow.students.find(s => s.id === studentId);
+  if (!s) { document.getElementById('reportCardContainer').innerHTML = '<p class="text-muted">No student selected.</p>'; return; }
+  const results = dbNow.results.filter(r => r.studentId === studentId && r.term === document.getElementById('rTerm').value);
+  const attendance = dbNow.attendance.filter(a => a.studentId === studentId);
+  const present = attendance.filter(a => a.status === 'Present').length;
+  const total = results.reduce((sum, r) => sum + r.total, 0);
+  const avg = results.length ? Math.round(total / results.length) : 0;
+  document.getElementById('reportCardContainer').innerHTML = `
+    <div class="report-card-doc">
+      <div class="rc-header"><div class="brand-mark" style="margin:0 auto 10px;">GFA</div><h2>Glittering Field Academy</h2><p>${SCHOOL.address}</p></div>
+      <div class="rc-meta">
+        <div class="item"><span class="k">Student Name</span><span class="v">${fullName(s)}</span></div>
+        <div class="item"><span class="k">Admission No.</span><span class="v">${s.admissionNo}</span></div>
+        <div class="item"><span class="k">Class</span><span class="v">${studentClassLabel(s)}</span></div>
+        <div class="item"><span class="k">Session</span><span class="v">${CURRENT_SESSION}</span></div>
+        <div class="item"><span class="k">Term</span><span class="v">${document.getElementById('rTerm').value}</span></div>
+        <div class="item"><span class="k">Attendance</span><span class="v">${attendance.length ? Math.round(present/attendance.length*100) : 0}%</span></div>
+      </div>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Subject</th><th>CA</th><th>Exam</th><th>Total</th><th>Grade</th><th>Remark</th></tr></thead>
+        <tbody>${results.map(r => `<tr><td>${r.subject}</td><td>${r.ca}</td><td>${r.exam}</td><td>${r.total}</td><td>${r.grade}</td><td>${r.remark}</td></tr>`).join('') || '<tr><td colspan="6" class="text-muted">No results recorded for this term.</td></tr>'}</tbody>
+      </table></div>
+      <div class="rc-summary">
+        <div class="box"><strong>${total}</strong><span>Total Score</span></div>
+        <div class="box"><strong>${avg}%</strong><span>Average</span></div>
+        <div class="box"><strong>${gradeFor(avg).grade}</strong><span>Overall Grade</span></div>
+        <div class="box"><strong>${results.length ? '3rd' : '-'}</strong><span>Class Position</span></div>
+      </div>
+      <div class="rc-comments">
+        <div class="box"><h5>Class Teacher's Comment</h5><p>${avg >= 70 ? 'An excellent result. Keep up the outstanding performance.' : avg >= 50 ? 'A good result this term. Continued effort will yield even better results.' : 'Needs improvement — additional support recommended at home.'}</p></div>
+        <div class="box"><h5>Principal's Comment</h5><p>${avg >= 60 ? 'Well done. Promoted to the next class.' : 'Kindly encourage more reading and practice at home.'}</p></div>
+      </div>
+    </div>`;
+}
+
+document.getElementById('loadResultsBtn').addEventListener('click', loadResultsTable);
+document.getElementById('saveResultsBtn').addEventListener('click', saveResults);
+document.getElementById('rSubject').addEventListener('change', loadResultsTable);
+document.getElementById('rTerm').addEventListener('change', loadResultsTable);
+document.getElementById('viewReportBtn').addEventListener('click', () => { populateReportStudents(); openModal('reportModal'); });
+document.getElementById('reportStudentSelect').addEventListener('change', renderReportCard);
+
+loadResultsTable();
+</script>
+</body>
+</html>

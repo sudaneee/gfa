@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Report Card{% if student %} — {{ student.full_name }}{% endif %}{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">{% endblock %}
+
+{% block content %}
+<div style="max-width:800px;margin:30px auto;padding:0 20px;">
+  {% if forbidden %}
+  <div class="empty-state card"><i class="fa-solid fa-lock"></i><h4>Access denied</h4></div>
+  {% else %}
+  {% include 'results/_report_card_body.html' %}
+  <div class="text-center mt-24 no-print">
+    <button class="btn btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Report Card</button>
+    <a class="btn btn-primary" href="{% url 'results:report_card_pdf' student.pk term.pk %}"><i class="fa-solid fa-file-pdf"></i> Download PDF</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

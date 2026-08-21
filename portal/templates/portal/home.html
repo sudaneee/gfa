@@ -1,0 +1,157 @@
+{% extends "base_dashboard.html" %}
+{% block title %}My Portal — {{ school.name }}{% endblock %}
+{% block dash_title %}Welcome, {{ user.get_full_name|default:user.username }}{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">Signed in as {{ user.get_role_display }}</div>{% endblock %}
+
+{% block dash_content %}
+{% if user.role == 'admin' %}
+  <div class="stats-grid mb-24">
+    <div class="stat-card"><div class="top"><div class="icon icon-green"><i class="fa-solid fa-user-graduate"></i></div></div><div class="value">{{ total_students }}</div><div class="label">Active Students</div></div>
+    <div class="stat-card"><div class="top"><div class="icon icon-navy"><i class="fa-solid fa-chalkboard-user"></i></div></div><div class="value">{{ total_teachers }}</div><div class="label">Active Teachers</div></div>
+    <div class="stat-card"><div class="top"><div class="icon icon-gold"><i class="fa-solid fa-people-roof"></i></div></div><div class="value">{{ total_parents }}</div><div class="label">Parents / Guardians</div></div>
+    <div class="stat-card"><div class="top"><div class="icon icon-purple"><i class="fa-solid fa-users-gear"></i></div></div><div class="value">{{ total_users }}</div><div class="label">System Users</div></div>
+    <div class="stat-card"><div class="top"><div class="icon icon-gold"><i class="fa-solid fa-file-signature"></i></div></div><div class="value">{{ open_applications }}</div><div class="label">Applications In Progress</div></div>
+    <div class="stat-card"><div class="top"><div class="icon icon-green"><i class="fa-solid fa-sack-dollar"></i></div></div><div class="value">₦{{ fees_collected_term|floatformat:0 }}</div><div class="label">Fees Collected{% if current_term %} — {{ current_term.get_name_display }}{% endif %}</div></div>
+    <div class="stat-card"><div class="top"><div class="icon icon-navy"><i class="fa-solid fa-hand-holding-dollar"></i></div></div><div class="value">₦{{ fees_outstanding_term|floatformat:0 }}</div><div class="label">Fees Outstanding{% if current_term %} — {{ current_term.get_name_display }}{% endif %}</div></div>
+    <div class="stat-card"><div class="top"><div class="icon icon-purple"><i class="fa-solid fa-clipboard-check"></i></div></div><div class="value">{% if todays_attendance_rate is not None %}{{ todays_attendance_rate }}%{% else %}—{% endif %}</div><div class="label">Today's Attendance</div></div>
+  </div>
+
+  <div class="dash-grid-main mb-24">
+    <div class="card"><div class="card-header"><h3>Enrollment by Level</h3></div><div class="card-body">
+      <div class="bar-chart">
+        {% for row in enrollment_by_level %}
+        <div class="bar-col"><div class="bar" style="height:{% if max_enrollment_level %}{% widthratio row.count max_enrollment_level 100 %}{% else %}4{% endif %}%;"><span class="bar-val">{{ row.count }}</span></div><span class="bar-label" style="font-size:.68rem;">{{ row.school_class__level }}</span></div>
+        {% empty %}<p class="text-muted">No students yet.</p>{% endfor %}
+      </div>
+    </div></div>
+    <div class="card"><div class="card-header"><h3>Application Pipeline</h3></div><div class="card-body">
+      <div class="legend-list">
+        {% for row in application_pipeline %}
+        <div class="legend-item"><span class="dot" style="background:{% if row.status == 'admitted' or row.status == 'approved' %}#1a9c62{% elif row.status == 'rejected' %}#d3413f{% else %}#e0a825{% endif %};"></span><span class="lbl">{{ row.label }}</span><span class="val">{{ row.count }}</span></div>
+        {% empty %}<p class="text-muted">No applications submitted yet.</p>{% endfor %}
+      </div>
+    </div></div>
+  </div>
+
+  <div class="card mb-24"><div class="card-header"><h3>Revenue — Last 6 Months</h3></div><div class="card-body">
+    <div class="bar-chart">
+      {% for row in revenue_by_month %}
+      <div class="bar-col"><div class="bar" style="height:{% if max_month_revenue %}{% widthratio row.total max_month_revenue 100 %}{% else %}4{% endif %}%;"><span class="bar-val">₦{{ row.total|floatformat:0 }}</span></div><span class="bar-label" style="font-size:.68rem;">{{ row.month|date:"M Y" }}</span></div>
+      {% empty %}<p class="text-muted">No successful payments recorded yet.</p>{% endfor %}
+    </div>
+  </div></div>
+
+  <div class="dash-grid-main mb-24">
+    <div class="card"><div class="card-header"><h3>Recent Applications</h3></div><div class="card-body">
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Applicant</th><th>Applying For</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for app in recent_applications %}
+          <tr><td>{{ app.full_name }}</td><td>{{ app.get_applying_for_display }}</td>
+            <td><span class="badge badge-{% if app.status == 'admitted' or app.status == 'approved' %}success{% elif app.status == 'rejected' %}danger{% else %}gold{% endif %}">{{ app.get_status_display }}</span></td></tr>
+          {% empty %}<tr><td colspan="3" class="text-muted">No applications yet.</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+    </div></div>
+    <div class="card"><div class="card-header"><h3>Recent Payments</h3></div><div class="card-body">
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Student</th><th>Amount</th><th>Gateway</th></tr></thead>
+        <tbody>
+          {% for pay in recent_payments %}
+          <tr><td>{{ pay.invoice.student }}</td><td>₦{{ pay.amount|floatformat:0 }}</td><td>{{ pay.get_gateway_display }}</td></tr>
+          {% empty %}<tr><td colspan="3" class="text-muted">No payments recorded yet.</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+    </div></div>
+  </div>
+
+  {% if recent_announcements %}
+  <div class="card mb-24"><div class="card-header"><h3>Recent Announcements</h3></div><div class="card-body">
+    <div class="grid-3">
+      {% for a in recent_announcements %}
+      <div class="card card-body"><h4 class="mb-4">{{ a.title }}</h4><p class="text-muted text-sm mb-0">{{ a.content|truncatewords:16 }}</p><p class="text-muted text-sm mt-8 mb-0">{{ a.created_at|date:"d M Y" }}</p></div>
+      {% endfor %}
+    </div>
+  </div></div>
+  {% endif %}
+
+  <div class="card"><div class="card-header"><h3>Quick Access</h3></div><div class="card-body">
+    <p class="text-muted text-sm mb-8">Admissions &amp; People</p>
+    <div class="quick-actions-grid mb-16">
+      <a class="quick-action" href="{% url 'admin_console:applications_list' %}"><i class="fa-solid fa-file-signature"></i><span>Applications</span></a>
+      <a class="quick-action" href="{% url 'admin_console:create' 'students' %}"><i class="fa-solid fa-user-plus"></i><span>Add Student</span></a>
+      <a class="quick-action" href="{% url 'admin_console:create' 'teachers' %}"><i class="fa-solid fa-chalkboard-user"></i><span>Add Teacher</span></a>
+      <a class="quick-action" href="{% url 'accounts:user_list' %}"><i class="fa-solid fa-users-gear"></i><span>Users &amp; Roles</span></a>
+    </div>
+    <p class="text-muted text-sm mb-8">Academics</p>
+    <div class="quick-actions-grid mb-16">
+      <a class="quick-action" href="{% url 'attendance:mark' %}"><i class="fa-solid fa-clipboard-check"></i><span>Mark Attendance</span></a>
+      <a class="quick-action" href="{% url 'results:entry' %}"><i class="fa-solid fa-pen-to-square"></i><span>Enter Results</span></a>
+      <a class="quick-action" href="{% url 'results:report_cards' %}"><i class="fa-solid fa-id-card"></i><span>Report Cards</span></a>
+      <a class="quick-action" href="{% url 'admin_console:list' 'classes' %}"><i class="fa-solid fa-people-roof"></i><span>Classes &amp; Sections</span></a>
+    </div>
+    <p class="text-muted text-sm mb-8">Fees &amp; Communication</p>
+    <div class="quick-actions-grid mb-16">
+      <a class="quick-action" href="{% url 'admin_console:invoices_list' %}"><i class="fa-solid fa-file-invoice-dollar"></i><span>Invoices</span></a>
+      <a class="quick-action" href="{% url 'admin_console:payments_list' %}"><i class="fa-solid fa-credit-card"></i><span>Payments</span></a>
+      <a class="quick-action" href="{% url 'admin_console:create' 'announcements' %}"><i class="fa-solid fa-bullhorn"></i><span>New Announcement</span></a>
+      <a class="quick-action" href="{% url 'admin_console:list' 'events' %}"><i class="fa-solid fa-calendar-star"></i><span>Events</span></a>
+    </div>
+    <p class="text-muted text-sm mb-8">Insights &amp; System</p>
+    <div class="quick-actions-grid">
+      <a class="quick-action" href="{% url 'portal:reports' %}"><i class="fa-solid fa-chart-column"></i><span>Reports</span></a>
+      <a class="quick-action" href="{% url 'admin_console:home' %}"><i class="fa-solid fa-table-cells-large"></i><span>Superadmin Console</span></a>
+      <a class="quick-action" href="{% url 'portal:settings' %}"><i class="fa-solid fa-gear"></i><span>Settings</span></a>
+    </div>
+  </div></div>
+
+{% elif user.role == 'teacher' %}
+  <div class="card"><div class="card-header"><h3>My Classes</h3></div><div class="card-body">
+    <div class="grid-3">
+      {% for section in teacher.sections.all %}
+      <div class="card card-body"><div class="feature-icon"><i class="fa-solid fa-chalkboard"></i></div><h4>{{ section }}</h4><p class="text-muted text-sm">{{ section.students.count }} students</p></div>
+      {% empty %}<p class="text-muted">No classes assigned yet.</p>{% endfor %}
+    </div>
+    <div class="flex gap-12 mt-24 flex-wrap">
+      <a href="{% url 'attendance:mark' %}" class="btn btn-primary"><i class="fa-solid fa-clipboard-check"></i> Mark Attendance</a>
+      <a href="{% url 'results:entry' %}" class="btn btn-secondary"><i class="fa-solid fa-pen-to-square"></i> Enter Results</a>
+    </div>
+  </div></div>
+
+{% elif user.role == 'parent' %}
+  <div class="grid-2">
+    {% for child in guardian.children.all %}
+    <div class="card card-body">
+      <div class="flex gap-16" style="align-items:center;">
+        <div class="avatar avatar-lg">{{ child.first_name|slice:":1" }}{{ child.last_name|slice:":1" }}</div>
+        <div><h4 class="mb-0">{{ child.full_name }}</h4><p class="text-muted text-sm mb-0">{{ child.class_label }} &middot; {{ child.admission_number }}</p></div>
+      </div>
+      {% if current_term %}
+      <div class="flex gap-8 mt-16">
+        <a href="{% url 'results:report_card' child.pk current_term.pk %}" class="btn btn-secondary" style="flex:1;"><i class="fa-solid fa-file-lines"></i> Report Card</a>
+        <a href="{% url 'payments:fee_invoice' child.pk current_term.pk %}" class="btn btn-primary" style="flex:1;"><i class="fa-solid fa-sack-dollar"></i> Fees</a>
+      </div>
+      {% endif %}
+    </div>
+    {% empty %}<p class="text-muted">No children linked to your account yet — contact the school office.</p>{% endfor %}
+  </div>
+
+{% elif user.role == 'student' %}
+  {% if student %}
+  <div class="card card-body">
+    <div class="flex gap-16" style="align-items:center;">
+      <div class="avatar avatar-lg">{{ student.first_name|slice:":1" }}{{ student.last_name|slice:":1" }}</div>
+      <div><h2 class="mb-0">{{ student.full_name }}</h2><p class="text-muted mb-0">{{ student.class_label }} &middot; {{ student.admission_number }}</p></div>
+    </div>
+    {% if current_term %}
+    <div class="flex gap-12 mt-24 flex-wrap">
+      <a href="{% url 'results:report_card' student.pk current_term.pk %}" class="btn btn-primary"><i class="fa-solid fa-file-lines"></i> View My Report Card</a>
+      <a href="{% url 'payments:fee_invoice' student.pk current_term.pk %}" class="btn btn-secondary"><i class="fa-solid fa-sack-dollar"></i> My Fees</a>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="text-muted">No student profile linked to your account yet — contact the school office.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

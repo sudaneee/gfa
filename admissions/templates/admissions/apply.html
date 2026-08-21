@@ -1,0 +1,241 @@
+{% extends "base_public.html" %}
+{% block title %}Online Application — {{ school.name }}{% endblock %}
+{% block page_content %}
+<header class="navbar" style="position:static;"><div class="container">
+  <a href="{% url 'website:home' %}" class="brand"><div class="brand-mark">GFA</div><div class="brand-text"><div class="name">{{ school.name }}</div><div class="tagline">{{ school.tagline }}</div></div></a>
+  <nav class="nav-links"><a href="{% url 'website:home' %}">Home</a><a href="{% url 'admissions:info' %}">Admissions</a><a href="{% url 'admissions:track' %}">Track Application</a></nav>
+</div></header>
+
+<section class="page-header" style="padding:40px 0;">
+  <div class="container"><h1>Online Application</h1><p>{{ school.current_session }} Admission Session — {{ school.name }}</p></div>
+</section>
+
+<section class="section-sm">
+  <div class="container" style="max-width:900px;">
+
+    {% if step != 'success' %}
+    <div class="app-steps-nav">
+      {% for s in step_nav %}
+      <div class="app-step-item {{ s.state }}" data-step="{{ s.number }}">
+        <div class="circle">{{ s.number }}</div>
+        <span>{{ s.label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card card-body">
+      {% if step == 'payment' %}
+        <h3>Step 1 — Pay Application Fee</h3>
+        <p class="text-muted text-sm mb-24">The application fee is paid upfront, before you fill in the form. Once payment is confirmed, the rest of the application unlocks.</p>
+        <div class="review-block"><h5>Application Fee</h5><div class="review-grid">
+          <div class="item"><span class="k">Amount Due</span><span class="v">₦{{ invoice.amount|floatformat:2 }}</span></div>
+          <div class="item"><span class="k">Status</span><span class="v"><span class="badge badge-{% if invoice.is_paid %}success{% elif invoice.status == 'partial' %}warning{% else %}danger{% endif %}">{{ invoice.get_status_display }}</span></span></div>
+        </div></div>
+
+        {% if invoice.is_paid %}
+        <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Payment received. You can now continue with the application form.</div>
+        <div class="flex-between mt-16"><span></span><a href="{% url 'admissions:apply_applicant' %}" class="btn btn-primary">Continue to Application Form <i class="fa-solid fa-arrow-right"></i></a></div>
+
+        {% elif not has_contact_info %}
+        <p class="text-muted text-sm mb-16">Before you pay, tell us where to reach you — we'll email your payment receipt and any updates here.</p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="set_contact" value="1">
+          <div class="form-row">
+            <div class="form-group"><label>Email Address <span class="req">*</span></label>{{ contact_form.email }}{% for e in contact_form.email.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+            <div class="form-group"><label>Phone Number <span class="req">*</span></label>{{ contact_form.phone }}{% for e in contact_form.phone.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block btn-lg">Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
+        </form>
+
+        {% else %}
+        <div class="review-block"><h5>Sending Receipts To</h5><div class="review-grid">
+          <div class="item"><span class="k">Email</span><span class="v">{{ draft.email }}</span></div>
+          <div class="item"><span class="k">Phone</span><span class="v">{{ draft.phone }}</span></div>
+        </div></div>
+        <form method="post" action="{% url 'payments:initiate_application_payment' draft.application_number %}" class="mt-16">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-block btn-lg"><i class="fa-solid fa-credit-card"></i> Pay ₦{{ invoice.balance|floatformat:2 }} with ZainPay</button>
+        </form>
+        <div class="alert alert-info mt-16">
+          <i class="fa-solid fa-building-columns"></i>
+          <div>Prefer bank transfer? Pay to <strong>{{ school.bank_name }}</strong>, account <strong>{{ school.bank_account_number }}</strong> ({{ school.bank_account_name }}) — include the applicant's name in the transfer narration, then contact the school office to confirm. Your application unlocks automatically once the school confirms your payment.</div>
+        </div>
+
+        {% if invoice.payments.all %}
+        <h4 class="mt-24">Payment Attempts</h4>
+        <table class="data-table"><thead><tr><th>Reference</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>
+          {% for p in invoice.payments.all %}
+          <tr>
+            <td>{{ p.reference }}</td><td>₦{{ p.amount|floatformat:2 }}</td>
+            <td><span class="badge badge-{% if p.status == 'success' %}success{% elif p.status == 'pending' %}warning{% else %}danger{% endif %}">{{ p.get_status_display }}</span></td>
+            <td>{% if p.status == 'pending' %}
+              <form method="post" action="{% url 'payments:check_application_payment_status' draft.application_number p.pk %}">{% csrf_token %}<button class="btn btn-sm btn-secondary" type="submit">Check Status</button></form>
+            {% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody></table>
+        {% endif %}
+        {% endif %}
+
+      {% elif step == 'applicant' %}
+        <h3>Step 2 — Applicant Information</h3>
+        <p class="text-muted text-sm mb-24">Tell us about the child applying.</p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="form-row">
+            <div class="form-group"><label>First Name <span class="req">*</span></label>{{ form.first_name }}{% for e in form.first_name.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+            <div class="form-group"><label>Middle Name</label>{{ form.middle_name }}</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Last Name <span class="req">*</span></label>{{ form.last_name }}{% for e in form.last_name.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+            <div class="form-group"><label>Date of Birth <span class="req">*</span></label>{{ form.date_of_birth }}{% for e in form.date_of_birth.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Gender <span class="req">*</span></label>{{ form.gender }}</div>
+            <div class="form-group"><label>Nationality <span class="req">*</span></label>{{ form.nationality }}</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>State of Origin <span class="req">*</span></label>{{ form.state_of_origin }}{% for e in form.state_of_origin.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+            <div class="form-group"><label>Local Government Area <span class="req">*</span></label>{{ form.lga }}{% for e in form.lga.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+          </div>
+          <div class="flex-between mt-32"><a href="{% url 'admissions:apply_payment' %}" class="btn btn-secondary">Back</a><button type="submit" class="btn btn-primary">Continue <i class="fa-solid fa-arrow-right"></i></button></div>
+        </form>
+
+      {% elif step == 'guardian' %}
+        <h3>Step 3 — Parent / Guardian Information</h3>
+        <p class="text-muted text-sm mb-24">Who is the primary contact for this applicant?</p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="form-row">
+            <div class="form-group"><label>Parent/Guardian Full Name <span class="req">*</span></label>{{ form.parent_name }}{% for e in form.parent_name.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+            <div class="form-group"><label>Relationship to Applicant <span class="req">*</span></label>{{ form.relationship }}</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Phone Number <span class="req">*</span></label>{{ form.phone }}{% for e in form.phone.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+            <div class="form-group"><label>Email Address <span class="req">*</span></label>{{ form.email }}{% for e in form.email.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+          </div>
+          <div class="form-group"><label>Home Address <span class="req">*</span></label>{{ form.address }}{% for e in form.address.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+          <div class="form-group"><label>Occupation</label>{{ form.occupation }}</div>
+          <div class="flex-between mt-32"><a href="{% url 'admissions:apply_applicant' %}" class="btn btn-secondary">Back</a><button type="submit" class="btn btn-primary">Continue <i class="fa-solid fa-arrow-right"></i></button></div>
+        </form>
+
+      {% elif step == 'academic' %}
+        <h3>Step 4 — Academic Information</h3>
+        <p class="text-muted text-sm mb-24">Tell us which level the applicant is applying for.</p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="form-group"><label>Applying For <span class="req">*</span></label>{{ form.applying_for }}{% for e in form.applying_for.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
+          <div class="form-row">
+            <div class="form-group"><label>Previous School</label>{{ form.previous_school }}<div class="form-hint">Leave blank if first time in school</div></div>
+            <div class="form-group"><label>Previous Class</label>{{ form.previous_class }}</div>
+          </div>
+          <div class="form-group"><label>Previous Academic Performance</label>{{ form.previous_performance }}</div>
+          <div class="flex-between mt-32"><a href="{% url 'admissions:apply_guardian' %}" class="btn btn-secondary">Back</a><button type="submit" class="btn btn-primary">Continue <i class="fa-solid fa-arrow-right"></i></button></div>
+        </form>
+
+      {% elif step == 'documents' %}
+        <h3>Step 5 — Document Upload</h3>
+        <p class="text-muted text-sm mb-24">Attach the required documents (PDF or image).</p>
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          <div class="grid-2">
+            <div class="form-group">
+              <label>Passport Photograph <span class="req">*</span></label>
+              <label class="upload-box" style="cursor:pointer;">
+                <i class="fa-solid fa-camera"></i><span>Click to select a file</span>
+                {{ form.passport_photo }}
+                {% if draft.passport_photo %}<div class="file-name"><i class="fa-solid fa-circle-check"></i> {{ draft.passport_photo.name|slice:"-30:" }}</div>{% endif %}
+              </label>
+              {% for e in form.passport_photo.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group">
+              <label>Birth Certificate <span class="req">*</span></label>
+              <label class="upload-box" style="cursor:pointer;">
+                <i class="fa-solid fa-file-lines"></i><span>Click to select a file</span>
+                {{ form.birth_certificate }}
+                {% if draft.birth_certificate %}<div class="file-name"><i class="fa-solid fa-circle-check"></i> {{ draft.birth_certificate.name|slice:"-30:" }}</div>{% endif %}
+              </label>
+              {% for e in form.birth_certificate.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group">
+              <label>Previous Result (if applicable)</label>
+              <label class="upload-box" style="cursor:pointer;">
+                <i class="fa-solid fa-file-invoice"></i><span>Click to select a file</span>
+                {{ form.previous_result }}
+                {% if draft.previous_result %}<div class="file-name"><i class="fa-solid fa-circle-check"></i> {{ draft.previous_result.name|slice:"-30:" }}</div>{% endif %}
+              </label>
+            </div>
+            <div class="form-group">
+              <label>Other Supporting Document</label>
+              <label class="upload-box" style="cursor:pointer;">
+                <i class="fa-solid fa-paperclip"></i><span>Click to select a file</span>
+                {{ form.other_document }}
+                {% if draft.other_document %}<div class="file-name"><i class="fa-solid fa-circle-check"></i> {{ draft.other_document.name|slice:"-30:" }}</div>{% endif %}
+              </label>
+            </div>
+          </div>
+          <div class="alert alert-info mt-16"><i class="fa-solid fa-circle-info"></i> Files are stored securely and only accessible to school staff reviewing your application.</div>
+          <div class="flex-between mt-16"><a href="{% url 'admissions:apply_academic' %}" class="btn btn-secondary">Back</a><button type="submit" class="btn btn-primary">Continue <i class="fa-solid fa-arrow-right"></i></button></div>
+        </form>
+
+      {% elif step == 'review' %}
+        <h3>Step 6 — Review Your Application</h3>
+        <p class="text-muted text-sm mb-24">Please confirm all details are correct before submitting.</p>
+        <div class="review-block"><h5>Applicant Information</h5><div class="review-grid">
+          <div class="item"><span class="k">Full Name</span><span class="v">{{ draft.full_name }}</span></div>
+          <div class="item"><span class="k">Date of Birth</span><span class="v">{{ draft.date_of_birth|date:"d M Y" }}</span></div>
+          <div class="item"><span class="k">Gender</span><span class="v">{{ draft.gender }}</span></div>
+          <div class="item"><span class="k">State of Origin</span><span class="v">{{ draft.state_of_origin }}</span></div>
+          <div class="item"><span class="k">LGA</span><span class="v">{{ draft.lga }}</span></div>
+        </div></div>
+        <div class="review-block"><h5>Parent / Guardian Information</h5><div class="review-grid">
+          <div class="item"><span class="k">Name</span><span class="v">{{ draft.parent_name }}</span></div>
+          <div class="item"><span class="k">Relationship</span><span class="v">{{ draft.relationship }}</span></div>
+          <div class="item"><span class="k">Phone</span><span class="v">{{ draft.phone }}</span></div>
+          <div class="item"><span class="k">Email</span><span class="v">{{ draft.email }}</span></div>
+          <div class="item"><span class="k">Address</span><span class="v">{{ draft.address }}</span></div>
+          <div class="item"><span class="k">Occupation</span><span class="v">{{ draft.occupation|default:"-" }}</span></div>
+        </div></div>
+        <div class="review-block"><h5>Academic Information</h5><div class="review-grid">
+          <div class="item"><span class="k">Applying For</span><span class="v">{{ draft.applying_for }}</span></div>
+          <div class="item"><span class="k">Previous School</span><span class="v">{{ draft.previous_school|default:"First time in school" }}</span></div>
+          <div class="item"><span class="k">Previous Class</span><span class="v">{{ draft.previous_class|default:"-" }}</span></div>
+          <div class="item"><span class="k">Previous Performance</span><span class="v">{{ draft.previous_performance|default:"-" }}</span></div>
+        </div></div>
+        <div class="review-block"><h5>Uploaded Documents</h5><div class="review-grid">
+          <div class="item"><span class="k">Passport Photograph</span><span class="v">{% if draft.passport_photo %}Uploaded{% else %}Not uploaded{% endif %}</span></div>
+          <div class="item"><span class="k">Birth Certificate</span><span class="v">{% if draft.birth_certificate %}Uploaded{% else %}Not uploaded{% endif %}</span></div>
+          <div class="item"><span class="k">Previous Result</span><span class="v">{% if draft.previous_result %}Uploaded{% else %}Not uploaded{% endif %}</span></div>
+          <div class="item"><span class="k">Other Document</span><span class="v">{% if draft.other_document %}Uploaded{% else %}Not uploaded{% endif %}</span></div>
+        </div></div>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="flex-between mt-32"><a href="{% url 'admissions:apply_documents' %}" class="btn btn-secondary">Back</a><button type="submit" class="btn btn-primary">Submit Application <i class="fa-solid fa-paper-plane"></i></button></div>
+        </form>
+
+      {% elif step == 'success' %}
+        <div class="success-panel">
+          <div class="check-circle"><i class="fa-solid fa-check"></i></div>
+          <h2>Application Submitted Successfully!</h2>
+          <p class="text-muted">Thank you, {{ application.parent_name }}. Your application for <strong>{{ application.full_name }}</strong> has been received.</p>
+          <div class="ref-number">{{ application.application_number }}</div>
+          <div class="review-grid" style="max-width:460px;margin:0 auto 24px;text-align:left;">
+            <div class="item"><span class="k">Applicant Name</span><span class="v">{{ application.full_name }}</span></div>
+            <div class="item"><span class="k">Programme/Level</span><span class="v">{{ application.applying_for }}</span></div>
+            <div class="item"><span class="k">Application Date</span><span class="v">{{ application.submitted_at|date:"d M Y" }}</span></div>
+            <div class="item"><span class="k">Current Status</span><span class="v"><span class="badge badge-warning">Pending Review</span></span></div>
+            <div class="item"><span class="k">Application Fee</span><span class="v">₦{{ application.invoice.amount|floatformat:0 }} — <span class="badge badge-success">Paid</span></span></div>
+          </div>
+          <div class="flex gap-12 flex-wrap flex-center no-print">
+            <button class="btn btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Application</button>
+            <a class="btn btn-secondary" href="{% url 'payments:application_invoice' application.application_number %}">View Receipt <i class="fa-solid fa-receipt"></i></a>
+            <a class="btn btn-primary" href="{% url 'admissions:track' %}?ref={{ application.application_number }}">Track Application <i class="fa-solid fa-arrow-right"></i></a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

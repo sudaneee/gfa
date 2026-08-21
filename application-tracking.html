@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Track Application — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/website.css">
+</head>
+<body>
+<header class="navbar"><div class="container">
+  <a href="index.html" class="brand"><div class="brand-mark">GFA</div><div class="brand-text"><div class="name">Glittering Field Academy</div><div class="tagline">Academics and Morality</div></div></a>
+  <nav class="nav-links"><a href="index.html">Home</a><a href="admissions.html">Admissions</a><a href="application.html">Apply Now</a></nav>
+  <div class="nav-actions"><a href="login.html" class="btn btn-secondary btn-sm">Parent Portal</a><button class="hamburger" aria-label="Menu"><span></span><span></span><span></span></button></div>
+</div></header>
+<div class="mobile-nav">
+  <div class="mobile-nav-header"><div class="brand"><div class="brand-mark">GFA</div><div class="brand-text"><div class="name">Glittering Field Academy</div></div></div><button class="mobile-nav-close btn btn-icon btn-ghost"><i class="fa-solid fa-xmark"></i></button></div>
+  <a href="index.html">Home</a><a href="admissions.html">Admissions</a><a href="application.html">Apply Now</a><a href="login.html">Parent Portal</a>
+</div>
+
+<section class="page-header" style="padding:44px 0;">
+  <div class="container"><h1>Track Your Application</h1><p>Enter your application reference number to check your current status.</p></div>
+</section>
+
+<section class="section-sm">
+  <div class="container" style="max-width:760px;">
+    <div class="card card-body">
+      <div class="flex gap-12 flex-wrap" style="align-items:flex-end;">
+        <div class="form-group" style="flex:1;min-width:220px;margin:0;">
+          <label>Application Number</label>
+          <input type="text" id="trackInput" placeholder="e.g. GFA-2026-000101">
+        </div>
+        <button class="btn btn-primary" id="trackBtn">Track Application <i class="fa-solid fa-magnifying-glass"></i></button>
+      </div>
+    </div>
+
+    <div id="trackResult" class="mt-24"></div>
+  </div>
+</section>
+
+<footer class="site-footer"><div class="container">
+  <div class="footer-bottom">&copy; 2026 Glittering Field Academy. All rights reserved. — Frontend demonstration prototype.</div>
+</div></footer>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/storage.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+const STAGES = ['Submitted', 'Under Review', 'Shortlisted', 'Interview', 'Approved', 'Admitted'];
+
+function renderTimeline(app) {
+  let effectiveStages = STAGES;
+  let currentIndex;
+  if (app.status === 'Rejected') {
+    currentIndex = -1; // special-cased below
+  } else if (app.status === 'Pending') {
+    currentIndex = 0;
+  } else {
+    currentIndex = STAGES.indexOf(app.status);
+  }
+
+  if (app.status === 'Rejected') {
+    return `<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> This application was reviewed and was not successful this admission cycle.</div>`;
+  }
+
+  return `<div class="track-timeline">${STAGES.map((stage, i) => {
+    const cls = i < currentIndex ? 'reached' : i === currentIndex ? 'current reached' : '';
+    const icon = i <= currentIndex ? 'fa-check' : 'fa-circle';
+    return `<div class="track-item ${cls}"><div class="dot"><i class="fa-solid ${icon}" style="font-size:.7rem;"></i></div><span>${stage}</span></div>`;
+  }).join('')}</div>`;
+}
+
+function doTrack() {
+  const ref = document.getElementById('trackInput').value.trim().toUpperCase();
+  const resultEl = document.getElementById('trackResult');
+  if (!ref) { toast('Please enter an application number.', 'error'); return; }
+  const db = DB.load();
+  const app = db.applications.find(a => a.applicationNo.toUpperCase() === ref);
+  if (!app) {
+    resultEl.innerHTML = `<div class="empty-state card"><i class="fa-solid fa-file-circle-question"></i><h4>No application found</h4><p>We couldn't find an application with reference "${escapeHtml(ref)}". Please check the number and try again.</p></div>`;
+    return;
+  }
+  resultEl.innerHTML = `
+    <div class="card card-body">
+      <div class="flex-between flex-wrap gap-12">
+        <div>
+          <h3 class="mb-0">${escapeHtml(app.firstName)} ${escapeHtml(app.lastName)}</h3>
+          <p class="text-muted text-sm mb-0">Reference: <strong>${app.applicationNo}</strong></p>
+        </div>
+        <span class="badge badge-${statusBadgeClass(app.status)}" style="font-size:.85rem;padding:8px 16px;">${app.status}</span>
+      </div>
+      <hr class="divider">
+      <div class="review-grid">
+        <div class="item"><span class="k">Applied Level</span><span class="v">${escapeHtml(app.applyingFor)}</span></div>
+        <div class="item"><span class="k">Application Date</span><span class="v">${formatDate(app.applicationDate)}</span></div>
+        <div class="item"><span class="k">Parent/Guardian</span><span class="v">${escapeHtml(app.parentName)}</span></div>
+        <div class="item"><span class="k">Phone</span><span class="v">${escapeHtml(app.phone)}</span></div>
+      </div>
+      <hr class="divider">
+      <h4>Status Timeline</h4>
+      ${renderTimeline(app)}
+    </div>`;
+}
+
+document.getElementById('trackBtn').addEventListener('click', doTrack);
+document.getElementById('trackInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') doTrack(); });
+
+// Auto-fill from ?ref= query param
+const params = new URLSearchParams(window.location.search);
+if (params.get('ref')) {
+  document.getElementById('trackInput').value = params.get('ref');
+  doTrack();
+}
+</script>
+</body>
+</html>

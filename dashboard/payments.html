@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payments — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script src="../assets/js/fees.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Payments', subtitle: 'Record payments and track outstanding fees.' });</script>
+
+<template id="pageTemplate">
+  <div class="stats-grid" id="payStats"></div>
+  <div class="tabs mb-24">
+    <button class="tab-btn" data-tabkey="history">Payment History</button>
+    <button class="tab-btn" data-tabkey="outstanding">Outstanding Fees</button>
+  </div>
+
+  <div data-tabpanel="history">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar"><div class="search-box"><i class="fa-solid fa-magnifying-glass"></i><input type="text" id="searchInput" placeholder="Search by student or receipt no..."></div></div>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Receipt No.</th><th>Student</th><th>Invoice</th><th>Amount</th><th>Method</th><th>Date</th><th>Status</th></tr></thead>
+        <tbody id="paymentsTableBody"></tbody>
+      </table></div>
+    </div></div>
+  </div>
+
+  <div data-tabpanel="outstanding" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Student</th><th>Class</th><th>Invoice</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="outstandingTableBody"></tbody>
+      </table></div>
+    </div></div>
+  </div>
+</template>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+document.body.insertAdjacentHTML('beforeend', PAYMENT_MODAL_HTML);
+
+function render() {
+  const db = DB.load();
+  const totalCollected = db.payments.reduce((s,p)=>s+p.amount,0);
+  const totalOutstanding = db.invoices.reduce((s,i)=>s+i.balance,0);
+  document.getElementById('payStats').innerHTML = `
+    <div class="stat-card"><div class="icon icon-green"><i class="fa-solid fa-sack-dollar"></i></div><div class="value">${formatCurrency(totalCollected)}</div><div class="label">Total Collected</div></div>
+    <div class="stat-card"><div class="icon icon-navy"><i class="fa-solid fa-hand-holding-dollar"></i></div><div class="value">${formatCurrency(totalOutstanding)}</div><div class="label">Total Outstanding</div></div>
+    <div class="stat-card"><div class="icon icon-gold"><i class="fa-solid fa-receipt"></i></div><div class="value">${db.payments.length}</div><div class="label">Payments Recorded</div></div>
+    <div class="stat-card"><div class="icon icon-purple"><i class="fa-solid fa-triangle-exclamation"></i></div><div class="value">${db.invoices.filter(i=>i.status!=='Paid').length}</div><div class="label">Invoices Pending</div></div>`;
+
+  const term = document.getElementById('searchInput').value.trim().toLowerCase();
+  document.getElementById('paymentsTableBody').innerHTML = db.payments.filter(p => {
+    if (!term) return true;
+    const s = db.students.find(s => s.id === p.studentId);
+    return `${s?fullName(s):''} ${p.receiptNo}`.toLowerCase().includes(term);
+  }).slice().reverse().map(p => {
+    const s = db.students.find(s => s.id === p.studentId);
+    return `<tr><td><strong>${p.receiptNo}</strong></td><td>${s?fullName(s):'-'}</td><td>${p.invoiceId}</td><td>${formatCurrency(p.amount)}</td><td>${p.method}</td><td>${formatDate(p.date)}</td><td><span class="badge badge-success">${p.status}</span></td></tr>`;
+  }).join('') || '<tr><td colspan="7" class="text-muted">No payments recorded yet.</td></tr>';
+
+  document.getElementById('outstandingTableBody').innerHTML = db.invoices.filter(i => i.balance > 0).map(inv => {
+    const s = db.students.find(s => s.id === inv.studentId);
+    return `<tr><td>${s?fullName(s):'-'}</td><td>${s?studentClassLabel(s):'-'}</td><td>${inv.id}</td><td>${formatCurrency(inv.balance)}</td><td><span class="badge badge-${statusBadgeClass(inv.status)}">${inv.status}</span></td>
+      <td><button class="btn btn-sm btn-primary" onclick="startPaymentFlow('${inv.id}', render)"><i class="fa-solid fa-money-check-dollar"></i> Record Payment</button></td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="text-muted">No outstanding balances. All fees are fully paid.</td></tr>';
+}
+
+document.getElementById('searchInput').addEventListener('input', debounce(render, 150));
+render();
+initHashTabs('history');
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+{% extends "base_public.html" %}
+{% block title %}Track Application — {{ school.name }}{% endblock %}
+{% block page_content %}
+<section class="page-header" style="padding:44px 0;">
+  <div class="container"><h1>Track Your Application</h1><p>Enter your application reference number to check your current status.</p></div>
+</section>
+
+<section class="section-sm">
+  <div class="container" style="max-width:760px;">
+    <div class="card card-body">
+      <form method="post" class="flex gap-12 flex-wrap" style="align-items:flex-end;">
+        {% csrf_token %}
+        <div class="form-group" style="flex:1;min-width:220px;margin:0;">
+          <label>Application Number</label>
+          {{ form.application_number }}
+        </div>
+        <button class="btn btn-primary" type="submit">Track Application <i class="fa-solid fa-magnifying-glass"></i></button>
+      </form>
+    </div>
+
+    {% if searched %}
+    <div class="mt-24">
+      {% if application %}
+      <div class="card card-body">
+        <div class="flex-between flex-wrap gap-12">
+          <div>
+            <h3 class="mb-0">{{ application.full_name }}</h3>
+            <p class="text-muted text-sm mb-0">Reference: <strong>{{ application.application_number }}</strong></p>
+          </div>
+          <span class="badge badge-{% if application.status == 'rejected' %}danger{% elif application.status == 'admitted' or application.status == 'approved' %}success{% elif application.status == 'pending' %}warning{% else %}info{% endif %}" style="font-size:.85rem;padding:8px 16px;">{{ application.get_status_display }}</span>
+        </div>
+        <hr class="divider">
+        <div class="review-grid">
+          <div class="item"><span class="k">Applied Level</span><span class="v">{{ application.applying_for }}</span></div>
+          <div class="item"><span class="k">Application Date</span><span class="v">{{ application.submitted_at|date:"d M Y" }}</span></div>
+          <div class="item"><span class="k">Parent/Guardian</span><span class="v">{{ application.parent_name }}</span></div>
+          <div class="item"><span class="k">Phone</span><span class="v">{{ application.phone }}</span></div>
+        </div>
+        <hr class="divider">
+        <h4>Status Timeline</h4>
+        {% if application.status == 'rejected' %}
+        <div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> This application was reviewed and was not successful this admission cycle.</div>
+        {% else %}
+        <div class="track-timeline">
+          {% for stage_key, stage_label in track_stages %}
+          <div class="track-item {% if stage_key in reached_stages %}reached{% endif %} {% if stage_key == application.status %}current{% endif %}">
+            <div class="dot"><i class="fa-solid {% if stage_key in reached_stages %}fa-check{% else %}fa-circle{% endif %}" style="font-size:.7rem;"></i></div>
+            <span>{{ stage_label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="empty-state card"><i class="fa-solid fa-file-circle-question"></i><h4>No application found</h4><p>We couldn't find a submitted application with that reference number. Please check and try again.</p></div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

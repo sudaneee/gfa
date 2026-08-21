@@ -1,0 +1,56 @@
+{% extends "base_dashboard.html" %}
+{% block title %}School Fees — {{ student.full_name }}{% endblock %}
+{% block dash_title %}School Fees{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">{% if student %}{{ student.full_name }} — {{ student.class_label }} — {{ term.session.name }} {{ term.get_name_display }}{% endif %}</div>{% endblock %}
+
+{% block dash_content %}
+<div style="max-width:640px;">
+{% if forbidden %}
+  <div class="empty-state card"><i class="fa-solid fa-lock"></i><h4>Access denied</h4></div>
+{% elif not invoice %}
+  <div class="empty-state card"><i class="fa-solid fa-file-invoice"></i><h4>No invoice yet</h4><p>An invoice for this term has not been generated yet — contact the school office.</p></div>
+{% else %}
+  <div class="card">
+    <div class="card-header"><h3>Invoice {{ invoice.invoice_number }}</h3>
+      <span class="badge badge-{% if invoice.status == 'paid' %}success{% elif invoice.status == 'partial' %}warning{% else %}danger{% endif %}">{{ invoice.get_status_display }}</span>
+    </div>
+    <div class="card-body">
+      <table class="data-table" style="min-width:0;"><tbody>
+        {% for item in invoice.items.all %}<tr><td>{{ item.category }}</td><td style="text-align:right;">₦{{ item.amount|floatformat:2 }}</td></tr>{% endfor %}
+        <tr style="font-weight:800;border-top:2px solid var(--gray-200);"><td>Total</td><td style="text-align:right;">₦{{ invoice.total|floatformat:2 }}</td></tr>
+        <tr><td>Amount Paid</td><td style="text-align:right;color:var(--success);">₦{{ invoice.amount_paid|floatformat:2 }}</td></tr>
+        <tr><td>Balance</td><td style="text-align:right;color:var(--danger);">₦{{ invoice.balance|floatformat:2 }}</td></tr>
+      </tbody></table>
+
+      {% if invoice.balance > 0 %}
+      <form method="post" action="{% url 'payments:initiate_fee_payment' student.pk term.pk %}" class="mt-16">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary btn-block btn-lg"><i class="fa-solid fa-credit-card"></i> Pay ₦{{ invoice.balance|floatformat:2 }} with ZainPay</button>
+      </form>
+      <div class="alert alert-info mt-16">
+        <i class="fa-solid fa-building-columns"></i>
+        <div>Prefer bank transfer? Pay to <strong>{{ school.bank_name }}</strong>, account <strong>{{ school.bank_account_number }}</strong> ({{ school.bank_account_name }}) — include <strong>{{ student.full_name }}</strong> in the transfer narration, then contact the school office to confirm.</div>
+      </div>
+      {% else %}
+      <div class="alert alert-success mt-16"><i class="fa-solid fa-circle-check"></i> Fully paid for this term.</div>
+      {% endif %}
+
+      {% if invoice.payments.all %}
+      <h4 class="mt-24">Payment History</h4>
+      <table class="data-table"><thead><tr><th>Reference</th><th>Amount</th><th>Method</th><th>Status</th><th></th></tr></thead><tbody>
+        {% for p in invoice.payments.all %}
+        <tr>
+          <td>{{ p.reference }}</td><td>₦{{ p.amount|floatformat:2 }}</td><td>{{ p.get_gateway_display }}</td>
+          <td><span class="badge badge-{% if p.status == 'success' %}success{% elif p.status == 'pending' %}warning{% else %}danger{% endif %}">{{ p.get_status_display }}</span></td>
+          <td>{% if p.status == 'pending' %}
+            <form method="post" action="{% url 'payments:check_fee_payment_status' student.pk term.pk p.pk %}">{% csrf_token %}<button class="btn btn-sm btn-secondary" type="submit">Check Status</button></form>
+          {% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody></table>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+</div>
+{% endblock %}

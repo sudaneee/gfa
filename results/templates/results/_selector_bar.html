@@ -1,0 +1,54 @@
+{% comment %}
+Session -> Term -> Class [-> Subject] cascading selector, GET-based —
+included by entry.html, update.html, report_cards.html, broadsheet.html.
+Session/Term/Class auto-submit on change so downstream options refresh;
+the final field (Subject when shown, otherwise Class) does not auto-submit
+— the explicit "Load" button is the deliberate trigger, per spec. Class
+and Subject start blank (no pre-selection) on the entry/update pages so no
+result loads until the teacher explicitly chooses both — see
+_resolve_selectors's `default_section` flag in results/views.py.
+Dropdowns are enhanced into searchable comboboxes via select2 (jQuery).
+Context vars: sessions/session, terms/term, sections/section,
+subjects/subject (only used if show_subject), show_subject (bool),
+load_label (str, optional).
+{% endcomment %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+<form method="get" class="filters-bar" id="resultsSelectorForm">
+  <select name="session_id" class="js-select2" data-placeholder="Search session…" onchange="this.form.submit()">
+    {% for s in sessions %}<option value="{{ s.pk }}" {% if session and s.pk == session.pk %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+  </select>
+  <select name="term_id" class="js-select2" data-placeholder="Search term…" onchange="this.form.submit()">
+    {% for t in terms %}<option value="{{ t.pk }}" {% if term and t.pk == term.pk %}selected{% endif %}>{{ t.get_name_display }}</option>{% endfor %}
+  </select>
+  <select name="section_id" class="js-select2" data-placeholder="Search class…" {% if show_subject %}onchange="this.form.submit()"{% endif %}>
+    <option value=""></option>
+    {% for sec in sections %}<option value="{{ sec.pk }}" {% if section and sec.pk == section.pk %}selected{% endif %}>{{ sec }}</option>{% endfor %}
+  </select>
+  {% if show_subject %}
+  <select name="subject_id" class="js-select2" data-placeholder="{% if section %}Search subject…{% else %}Choose a class first{% endif %}">
+    <option value=""></option>
+    {% for subj in subjects %}<option value="{{ subj.pk }}" {% if subject and subj.pk == subject.pk %}selected{% endif %}>{{ subj.name }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-magnifying-glass"></i> {{ load_label|default:"Load Students" }}</button>
+</form>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+  (function () {
+    function init() {
+      jQuery('#resultsSelectorForm .js-select2').each(function () {
+        jQuery(this).select2({
+          width: '200px',
+          placeholder: jQuery(this).data('placeholder'),
+          allowClear: jQuery(this).find('option[value=""]').length > 0,
+        });
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+</script>

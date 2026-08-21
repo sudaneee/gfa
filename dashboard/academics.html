@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Academic Management — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Academic Management', subtitle: 'Sessions, terms, classes, subjects and timetable.' });</script>
+
+<template id="pageTemplate">
+  <div class="tabs mb-24">
+    <button class="tab-btn" data-tabkey="sessions">Sessions & Terms</button>
+    <button class="tab-btn" data-tabkey="classes">Classes & Sections</button>
+    <button class="tab-btn" data-tabkey="subjects">Subjects</button>
+    <button class="tab-btn" data-tabkey="timetable">Timetable</button>
+  </div>
+
+  <div data-tabpanel="sessions">
+    <div class="card mb-24"><div class="card-header"><h3>Academic Session</h3><span class="badge badge-gold">Current</span></div>
+      <div class="card-body"><h2 style="margin:0;">2026/2027 Academic Session</h2><p class="text-muted">The current running session for Glittering Field Academy.</p></div>
+    </div>
+    <div class="grid-3" id="termsGrid"></div>
+  </div>
+
+  <div data-tabpanel="classes" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Class</th><th>Level</th><th>Sections</th><th>Enrolled Students</th></tr></thead>
+        <tbody id="classesTableBody"></tbody>
+      </table></div>
+    </div></div>
+  </div>
+
+  <div data-tabpanel="subjects" style="display:none;">
+    <div class="grid-3" id="subjectsGrid"></div>
+  </div>
+
+  <div data-tabpanel="timetable" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar"><select id="ttClassSelect"></select></div>
+      <div class="table-wrap" id="timetableContainer"></div>
+    </div></div>
+  </div>
+</template>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+const db = DB.load();
+
+// Sessions / Terms
+document.getElementById('termsGrid').innerHTML = TERMS.map((t, i) => `
+  <div class="card card-body">
+    <div class="feature-icon"><i class="fa-solid fa-calendar-days"></i></div>
+    <h4>${t}</h4>
+    <p class="text-muted text-sm">${i === 0 ? 'Sept 2026 – Dec 2026' : i === 1 ? 'Jan 2027 – Apr 2027' : 'May 2027 – Jul 2027'}</p>
+    <span class="badge ${t === CURRENT_TERM ? 'badge-success' : 'badge-gray'}">${t === CURRENT_TERM ? 'Current Term' : 'Upcoming'}</span>
+  </div>`).join('');
+
+// Classes
+document.getElementById('classesTableBody').innerHTML = db.classes.map(c => {
+  const count = db.students.filter(s => s.class === c.name && s.status === 'Active').length;
+  return `<tr><td><strong>${c.name}</strong></td><td>${c.level}</td><td>${c.sections.join(', ')}</td><td>${count}</td></tr>`;
+}).join('');
+
+// Subjects
+document.getElementById('subjectsGrid').innerHTML = Object.keys(SUBJECTS_BY_LEVEL).map(level => `
+  <div class="card card-body">
+    <h4>${level}</h4>
+    <div class="flex flex-wrap gap-8 mt-16">${SUBJECTS_BY_LEVEL[level].map(s => `<span class="badge badge-gray">${s}</span>`).join('')}</div>
+  </div>`).join('');
+
+// Timetable
+const ttClasses = Object.keys(db.timetable);
+document.getElementById('ttClassSelect').innerHTML = ttClasses.map(c => `<option value="${c}">${c}</option>`).join('');
+function renderTimetable() {
+  const cls = document.getElementById('ttClassSelect').value;
+  const data = db.timetable[cls];
+  const days = Object.keys(data);
+  const periods = data[days[0]].map(p => p.period);
+  let html = '<table class="data-table" style="min-width:800px;"><thead><tr><th>Time</th>' + days.map(d => `<th>${d}</th>`).join('') + '</tr></thead><tbody>';
+  periods.forEach((period, pi) => {
+    html += `<tr><td><strong>${period}</strong></td>` + days.map(d => {
+      const cell = data[d][pi];
+      return cell.subject === 'BREAK' ? '<td style="background:var(--gold-100);font-weight:700;text-align:center;">BREAK</td>' : `<td>${cell.subject}<br><span class="text-muted" style="font-size:.72rem;">${cell.teacher}</span></td>`;
+    }).join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('timetableContainer').innerHTML = html;
+}
+document.getElementById('ttClassSelect').addEventListener('change', renderTimetable);
+renderTimetable();
+
+initHashTabs('sessions');
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+{% extends "base_dashboard.html" %}
+{% load result_extras %}
+{% block title %}Class Result Sheet — {{ school.name }}{% endblock %}
+{% block dash_title %}Class Result Sheet{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">Every student's scores per subject, running average, and class position.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card"><div class="card-body">
+  {% include 'results/_selector_bar.html' with show_subject=False load_label="Load Sheet" %}
+  {% if board %}
+  <div class="text-right mb-16 no-print">
+    <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button>
+  </div>
+  {% endif %}
+
+  {% if board %}
+  <div class="table-wrap"><table class="data-table">
+    <thead>
+      <tr>
+        <th>Student</th>
+        {% for subj in board.subjects %}<th>{{ subj.name }}</th>{% endfor %}
+        <th>Average</th>
+        <th>Position</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in board.rows %}
+      <tr>
+        <td>{{ row.student.full_name }}</td>
+        {% for subj in board.subjects %}
+          {% with result=row.results|dictattr:subj.id %}
+          <td>{% if result %}{{ result.total }} <span class="badge badge-{% if result.grade == 'F' %}danger{% elif result.grade == 'A' %}success{% else %}gray{% endif %}">{{ result.grade }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          {% endwith %}
+        {% endfor %}
+        <td><strong>{{ row.average }}%</strong></td>
+        <td>{% if row.position %}<span class="badge badge-purple">{{ row.position }} of {{ board.class_size }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="{{ board.subjects|length|add:3 }}" class="text-muted">No active students in this class.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty-state"><i class="fa-solid fa-table"></i><h4>No class assigned</h4></div>
+  {% endif %}
+</div></div>
+{% endblock %}

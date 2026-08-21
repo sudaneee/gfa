@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teacher Dashboard — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>
+const session = initDashLayout({ role: 'teacher', title: 'Teacher Dashboard', subtitle: 'Welcome back — manage your classes, attendance and results.' });
+</script>
+
+<template id="pageTemplate">
+  <div class="tabs mb-24">
+    <button class="tab-btn" data-tabkey="overview">Overview</button>
+    <button class="tab-btn" data-tabkey="students">My Students</button>
+    <button class="tab-btn" data-tabkey="attendance">Attendance</button>
+    <button class="tab-btn" data-tabkey="results">Results</button>
+    <button class="tab-btn" data-tabkey="exams">Examinations</button>
+    <button class="tab-btn" data-tabkey="timetable">Timetable</button>
+    <button class="tab-btn" data-tabkey="announcements">Announcements</button>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div data-tabpanel="overview">
+    <div class="stats-grid" id="overviewStats"></div>
+    <div class="card"><div class="card-header"><h3>My Classes</h3></div><div class="card-body"><div class="grid-3" id="myClassesGrid"></div></div></div>
+  </div>
+
+  <!-- STUDENTS -->
+  <div data-tabpanel="students" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar"><select id="stClassFilter"></select></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Admission No.</th><th>Name</th><th>Class</th><th>Gender</th></tr></thead><tbody id="myStudentsBody"></tbody></table></div>
+    </div></div>
+  </div>
+
+  <!-- ATTENDANCE -->
+  <div data-tabpanel="attendance" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar">
+        <select id="attClassSelect"></select>
+        <input type="date" id="attDate" value="2026-08-17">
+        <button class="btn btn-secondary" id="loadAttBtn"><i class="fa-solid fa-arrow-rotate-right"></i> Load</button>
+      </div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Admission No.</th><th>Name</th><th>Present</th><th>Absent</th><th>Late</th></tr></thead><tbody id="attTableBody"></tbody></table></div>
+      <div class="flex-between mt-16"><span></span><button class="btn btn-primary" id="saveAttBtn"><i class="fa-solid fa-floppy-disk"></i> Save Attendance</button></div>
+    </div></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div data-tabpanel="results" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar">
+        <select id="resClassSelect"></select>
+        <select id="resSubjectSelect"></select>
+        <select id="resTermSelect"><option>First Term</option><option>Second Term</option><option>Third Term</option></select>
+        <button class="btn btn-secondary" id="loadResBtn"><i class="fa-solid fa-arrow-rotate-right"></i> Load</button>
+      </div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Admission No.</th><th>Name</th><th>CA (0-30)</th><th>Exam (0-70)</th><th>Total</th><th>Grade</th></tr></thead><tbody id="resTableBody"></tbody></table></div>
+      <div class="flex-between mt-16"><span class="text-muted text-sm">Grades are calculated automatically based on school grade boundaries.</span><button class="btn btn-primary" id="saveResBtn"><i class="fa-solid fa-floppy-disk"></i> Save Results</button></div>
+    </div></div>
+  </div>
+
+  <!-- EXAMS -->
+  <div data-tabpanel="exams" style="display:none;">
+    <div class="grid-3" id="teacherExamsGrid"></div>
+  </div>
+
+  <!-- TIMETABLE -->
+  <div data-tabpanel="timetable" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar"><select id="ttSelect"></select></div>
+      <div class="table-wrap" id="ttContainer"></div>
+    </div></div>
+  </div>
+
+  <!-- ANNOUNCEMENTS -->
+  <div data-tabpanel="announcements" style="display:none;">
+    <div class="card"><div class="card-body" id="teacherAnnList"></div></div>
+  </div>
+</template>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+const db = DB.load();
+const teacher = db.teachers.find(t => t.id === session.refId) || db.teachers[0];
+const myClasses = teacher.classes || [];
+
+function classNameSection(combined) {
+  // e.g. "JSS 2A" -> {name: "JSS 2", section: "A"}
+  const match = combined.match(/^(.*?)([A-Z])$/);
+  return match ? { name: match[1].trim(), section: match[2] } : { name: combined, section: '' };
+}
+
+// Overview
+const myStudents = db.students.filter(s => myClasses.some(c => { const cs = classNameSection(c); return s.class === cs.name && s.section === cs.section; }) && s.status === 'Active');
+const myAttendance = db.attendance.filter(a => myStudents.some(s => s.id === a.studentId));
+const presentRate = myAttendance.length ? Math.round(myAttendance.filter(a=>a.status==='Present').length/myAttendance.length*100) : 0;
+const myResultsCount = db.results.filter(r => myStudents.some(s=>s.id===r.studentId) && teacher.subjects.includes(r.subject)).length;
+
+document.getElementById('overviewStats').innerHTML = `
+  <div class="stat-card"><div class="icon icon-navy"><i class="fa-solid fa-user-graduate"></i></div><div class="value">${myStudents.length}</div><div class="label">My Students</div></div>
+  <div class="stat-card"><div class="icon icon-purple"><i class="fa-solid fa-people-roof"></i></div><div class="value">${myClasses.length}</div><div class="label">Classes Assigned</div></div>
+  <div class="stat-card"><div class="icon icon-green"><i class="fa-solid fa-calendar-check"></i></div><div class="value">${presentRate}%</div><div class="label">Avg Attendance</div></div>
+  <div class="stat-card"><div class="icon icon-gold"><i class="fa-solid fa-pen-to-square"></i></div><div class="value">${myResultsCount}</div><div class="label">Results Recorded</div></div>`;
+
+document.getElementById('myClassesGrid').innerHTML = myClasses.map(c => {
+  const cs = classNameSection(c);
+  const count = db.students.filter(s => s.class === cs.name && s.section === cs.section && s.status === 'Active').length;
+  return `<div class="card card-body"><div class="feature-icon"><i class="fa-solid fa-chalkboard"></i></div><h4>${c}</h4><p class="text-muted text-sm">${count} students &middot; ${teacher.subjects.join(', ')}</p></div>`;
+}).join('') || '<p class="text-muted">No classes assigned yet.</p>';
+
+// Students tab
+document.getElementById('stClassFilter').innerHTML = '<option value="">All My Classes</option>' + myClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+function renderMyStudents() {
+  const filter = document.getElementById('stClassFilter').value;
+  const list = myStudents.filter(s => !filter || (studentClassLabel(s) === filter));
+  document.getElementById('myStudentsBody').innerHTML = list.map(s => `<tr><td>${s.admissionNo}</td><td>${fullName(s)}</td><td>${studentClassLabel(s)}</td><td>${s.gender}</td></tr>`).join('') || '<tr><td colspan="4" class="text-muted">No students found.</td></tr>';
+}
+document.getElementById('stClassFilter').addEventListener('change', renderMyStudents);
+renderMyStudents();
+
+// Attendance tab
+document.getElementById('attClassSelect').innerHTML = myClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+function loadAttendance() {
+  const cls = document.getElementById('attClassSelect').value;
+  const cs = classNameSection(cls);
+  const date = document.getElementById('attDate').value;
+  const students = db.students.filter(s => s.class === cs.name && s.section === cs.section && s.status === 'Active');
+  document.getElementById('attTableBody').innerHTML = students.map(s => {
+    const existing = db.attendance.find(a => a.studentId === s.id && a.date === date);
+    const status = existing ? existing.status : 'Present';
+    return `<tr data-student="${s.id}"><td>${s.admissionNo}</td><td>${fullName(s)}</td>
+      <td><input type="radio" name="tatt-${s.id}" value="Present" ${status==='Present'?'checked':''}></td>
+      <td><input type="radio" name="tatt-${s.id}" value="Absent" ${status==='Absent'?'checked':''}></td>
+      <td><input type="radio" name="tatt-${s.id}" value="Late" ${status==='Late'?'checked':''}></td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="text-muted">No students in this class.</td></tr>';
+}
+document.getElementById('loadAttBtn').addEventListener('click', loadAttendance);
+document.getElementById('saveAttBtn').addEventListener('click', () => {
+  const cls = document.getElementById('attClassSelect').value;
+  const date = document.getElementById('attDate').value;
+  const rows = document.querySelectorAll('#attTableBody tr[data-student]');
+  DB.update(dbw => {
+    rows.forEach(row => {
+      const studentId = row.dataset.student;
+      const checked = row.querySelector(`input[name="tatt-${studentId}"]:checked`);
+      const status = checked ? checked.value : 'Present';
+      const idx = dbw.attendance.findIndex(a => a.studentId === studentId && a.date === date);
+      const record = { studentId, class: cls, date, status };
+      if (idx > -1) dbw.attendance[idx] = record; else dbw.attendance.push(record);
+    });
+  });
+  toast('Attendance saved successfully.', 'success');
+});
+
+// Results tab
+document.getElementById('resClassSelect').innerHTML = myClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+document.getElementById('resSubjectSelect').innerHTML = teacher.subjects.map(s=>`<option>${s}</option>`).join('');
+function computeRow(ca, exam) {
+  ca = Math.min(30, Math.max(0, Number(ca) || 0));
+  exam = Math.min(70, Math.max(0, Number(exam) || 0));
+  const total = ca + exam;
+  const g = gradeFor(total);
+  return { ca, exam, total, grade: g.grade };
+}
+function loadTeacherResults() {
+  const cls = document.getElementById('resClassSelect').value;
+  const cs = classNameSection(cls);
+  const subject = document.getElementById('resSubjectSelect').value;
+  const term = document.getElementById('resTermSelect').value;
+  const students = db.students.filter(s => s.class === cs.name && s.section === cs.section && s.status === 'Active');
+  document.getElementById('resTableBody').innerHTML = students.map(s => {
+    const existing = db.results.find(r => r.studentId === s.id && r.subject === subject && r.term === term);
+    const ca = existing ? existing.ca : '', exam = existing ? existing.exam : '';
+    const c = computeRow(ca || 0, exam || 0);
+    return `<tr data-student="${s.id}"><td>${s.admissionNo}</td><td>${fullName(s)}</td>
+      <td><input type="number" class="tca-input" min="0" max="30" value="${ca}" style="width:80px;"></td>
+      <td><input type="number" class="texam-input" min="0" max="70" value="${exam}" style="width:80px;"></td>
+      <td class="ttotal-cell"><strong>${c.total}</strong></td><td class="tgrade-cell"><span class="badge badge-gray">${c.grade}</span></td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="text-muted">No students in this class.</td></tr>';
+  document.querySelectorAll('#resTableBody tr').forEach(row => {
+    const ca = row.querySelector('.tca-input'), exam = row.querySelector('.texam-input');
+    if (!ca) return;
+    function recalc() { const c = computeRow(ca.value, exam.value); row.querySelector('.ttotal-cell').innerHTML = `<strong>${c.total}</strong>`; row.querySelector('.tgrade-cell').innerHTML = `<span class="badge badge-${c.grade==='F'?'danger':c.grade==='A'?'success':'gray'}">${c.grade}</span>`; }
+    ca.addEventListener('input', recalc); exam.addEventListener('input', recalc);
+  });
+}
+document.getElementById('loadResBtn').addEventListener('click', loadTeacherResults);
+document.getElementById('saveResBtn').addEventListener('click', () => {
+  const subject = document.getElementById('resSubjectSelect').value;
+  const term = document.getElementById('resTermSelect').value;
+  const rows = document.querySelectorAll('#resTableBody tr[data-student]');
+  DB.update(dbw => {
+    rows.forEach(row => {
+      const studentId = row.dataset.student;
+      const ca = Number(row.querySelector('.tca-input').value) || 0;
+      const exam = Number(row.querySelector('.texam-input').value) || 0;
+      const c = computeRow(ca, exam);
+      const g = gradeFor(c.total);
+      const idx = dbw.results.findIndex(r => r.studentId === studentId && r.subject === subject && r.term === term);
+      const record = { studentId, session: CURRENT_SESSION, term, subject, ca: c.ca, exam: c.exam, total: c.total, grade: g.grade, point: g.point, remark: g.remark, teacherId: teacher.id };
+      if (idx > -1) dbw.results[idx] = record; else dbw.results.push(record);
+    });
+  });
+  toast('Results updated successfully.', 'success');
+});
+loadTeacherResults();
+loadAttendance();
+
+// Exams tab
+document.getElementById('teacherExamsGrid').innerHTML = db.exams.filter(e => teacher.subjects.includes(e.subject) || myClasses.some(c=>c.startsWith(e.class))).map(e => `
+  <div class="card card-body"><span class="badge badge-purple">${e.subject}</span><h4 class="mt-8">${e.title}</h4><p class="text-muted text-sm">${e.class} &middot; ${e.questions.length} Questions &middot; ${e.durationMinutes} mins</p></div>`).join('') || '<p class="text-muted">No examinations assigned to your subjects yet.</p>';
+
+// Timetable tab
+document.getElementById('ttSelect').innerHTML = myClasses.filter(c => db.timetable[c]).map(c=>`<option value="${c}">${c}</option>`).join('') || '<option value="">No timetable data</option>';
+function renderTT() {
+  const cls = document.getElementById('ttSelect').value;
+  const data = db.timetable[cls];
+  if (!data) { document.getElementById('ttContainer').innerHTML = '<p class="text-muted">No timetable available for your assigned classes.</p>'; return; }
+  const days = Object.keys(data);
+  const periods = data[days[0]].map(p => p.period);
+  let html = '<table class="data-table" style="min-width:800px;"><thead><tr><th>Time</th>' + days.map(d=>`<th>${d}</th>`).join('') + '</tr></thead><tbody>';
+  periods.forEach((period, pi) => { html += `<tr><td><strong>${period}</strong></td>` + days.map(d => { const cell = data[d][pi]; return cell.subject==='BREAK' ? '<td style="background:var(--gold-100);font-weight:700;text-align:center;">BREAK</td>' : `<td>${cell.subject}<br><span class="text-muted" style="font-size:.72rem;">${cell.teacher}</span></td>`; }).join('') + '</tr>'; });
+  html += '</tbody></table>';
+  document.getElementById('ttContainer').innerHTML = html;
+}
+document.getElementById('ttSelect').addEventListener('change', renderTT);
+renderTT();
+
+// Announcements tab
+document.getElementById('teacherAnnList').innerHTML = db.announcements.filter(a => a.audience === 'Teachers' || a.audience === 'Staff' || a.audience === 'All Parents').slice().reverse().map(a => `
+  <div class="activity-item"><div class="dot-icon icon-purple" style="background:#efe8fb;color:var(--purple-600);"><i class="fa-solid fa-bullhorn"></i></div><div><p><strong>${a.title}</strong><br>${a.content}</p><span>${formatDate(a.date)}</span></div></div>`).join('') || '<p class="text-muted">No announcements yet.</p>';
+
+initHashTabs('overview');
+</script>
+</body>
+</html>

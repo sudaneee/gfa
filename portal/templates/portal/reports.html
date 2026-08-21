@@ -1,0 +1,95 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Reports — {{ school.name }}{% endblock %}
+{% block dash_title %}Reports{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">Student, academic, financial and attendance insights{% if term %} — {{ term }}{% endif %}.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="tabs mb-24">
+  <button class="tab-btn active" data-tab="student">Student Reports</button>
+  <button class="tab-btn" data-tab="academic">Academic Reports</button>
+  <button class="tab-btn" data-tab="financial">Financial Reports</button>
+  <button class="tab-btn" data-tab="attendance">Attendance Reports</button>
+</div>
+
+<div class="tab-panel active" id="tab-student">
+  <div class="dash-grid-main">
+    <div class="card"><div class="card-header"><h3>Students by Class</h3></div><div class="card-body">
+      <div class="bar-chart">
+        {% for row in by_class %}
+        {% widthratio row.count total_students 100 as pct %}
+        <div class="bar-col"><div class="bar" style="height:{{ pct|default:4 }}%;"><span class="bar-val">{{ row.count }}</span></div><span class="bar-label" style="font-size:.62rem;">{{ row.school_class__name }}</span></div>
+        {% endfor %}
+      </div>
+    </div></div>
+    <div class="card"><div class="card-header"><h3>Students by Gender</h3></div><div class="card-body">
+      <div class="legend-list">
+        {% for row in by_gender %}<div class="legend-item"><span class="dot" style="background:{% if row.gender == 'Male' %}#1d3078{% else %}#e0a825{% endif %};"></span><span class="lbl">{{ row.gender }}</span><span class="val">{{ row.count }}</span></div>{% endfor %}
+      </div>
+      <p class="text-muted text-sm mt-16">Total active students: <strong>{{ total_students }}</strong><br>New admissions this year: <strong>{{ new_admissions }}</strong></p>
+    </div></div>
+  </div>
+</div>
+
+<div class="tab-panel" id="tab-academic">
+  <div class="dash-grid-main">
+    <div class="card"><div class="card-header"><h3>Class Performance (Average Score)</h3></div><div class="card-body">
+      <div class="bar-chart">
+        {% for row in class_performance %}
+        <div class="bar-col"><div class="bar" style="height:{{ row.avg_total|floatformat:0 }}%;"><span class="bar-val">{{ row.avg_total|floatformat:0 }}%</span></div><span class="bar-label" style="font-size:.62rem;">{{ row.student__school_class__name }}</span></div>
+        {% empty %}<p class="text-muted">No results recorded yet.</p>{% endfor %}
+      </div>
+    </div></div>
+    <div class="card"><div class="card-header"><h3>Grade Distribution</h3></div><div class="card-body">
+      <div class="legend-list">
+        {% for row in grade_distribution %}<div class="legend-item"><span class="dot" style="background:{% if row.grade == 'A' %}#1a9c62{% elif row.grade == 'F' %}#d3413f{% else %}#9aa1b8{% endif %};"></span><span class="lbl">Grade {{ row.grade }}</span><span class="val">{{ row.count }}</span></div>{% empty %}<p class="text-muted">No results recorded yet.</p>{% endfor %}
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<div class="tab-panel" id="tab-financial">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="icon icon-green"><i class="fa-solid fa-sack-dollar"></i></div><div class="value">₦{{ total_collected|floatformat:0 }}</div><div class="label">Total Collected</div></div>
+    <div class="stat-card"><div class="icon icon-navy"><i class="fa-solid fa-hand-holding-dollar"></i></div><div class="value">₦{{ total_outstanding|floatformat:0 }}</div><div class="label">Outstanding</div></div>
+    <div class="stat-card"><div class="icon icon-gold"><i class="fa-solid fa-file-invoice-dollar"></i></div><div class="value">₦{{ total_billed|floatformat:0 }}</div><div class="label">Total Billed</div></div>
+    <div class="stat-card"><div class="icon icon-purple"><i class="fa-solid fa-percent"></i></div><div class="value">{% if total_billed %}{% widthratio total_collected total_billed 100 %}%{% else %}0%{% endif %}</div><div class="label">Collection Rate</div></div>
+  </div>
+  <div class="card"><div class="card-header"><h3>Fees Collected by Band</h3></div><div class="card-body">
+    <div class="bar-chart">
+      {% for row in fees_by_band %}
+      <div class="bar-col"><div class="bar" style="height:{% if total_collected %}{% widthratio row.collected total_collected 100 %}{% else %}4{% endif %}%;"><span class="bar-val">₦{{ row.collected|floatformat:0 }}</span></div><span class="bar-label">{{ row.band }}</span></div>
+      {% endfor %}
+    </div>
+  </div></div>
+</div>
+
+<div class="tab-panel" id="tab-attendance">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="icon icon-green"><i class="fa-solid fa-check"></i></div><div class="value">{{ present_rate }}%</div><div class="label">Overall Present Rate</div></div>
+    <div class="stat-card"><div class="icon icon-navy"><i class="fa-solid fa-xmark"></i></div><div class="value">{{ absent_rate }}%</div><div class="label">Overall Absent Rate</div></div>
+    <div class="stat-card"><div class="icon icon-gold"><i class="fa-solid fa-database"></i></div><div class="value">{{ total_attendance }}</div><div class="label">Total Records</div></div>
+    <div class="stat-card"><div class="icon icon-purple"><i class="fa-solid fa-users"></i></div><div class="value">{{ total_students }}</div><div class="label">Students Tracked</div></div>
+  </div>
+  <div class="card"><div class="card-header"><h3>Daily Attendance Trend</h3></div><div class="card-body">
+    <div class="bar-chart">
+      {% for row in daily_trend %}
+      {% widthratio row.present row.total 100 as pct %}
+      <div class="bar-col"><div class="bar" style="height:{{ pct }}%;"><span class="bar-val">{{ pct }}%</span></div><span class="bar-label" style="font-size:.6rem;">{{ row.date|date:"d/m" }}</span></div>
+      {% empty %}<p class="text-muted">No attendance recorded yet.</p>{% endfor %}
+    </div>
+  </div></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.tabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+{% endblock %}

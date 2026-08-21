@@ -1,0 +1,52 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Payments — {{ school.name }}{% endblock %}
+{% block dash_title %}Payments{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">{{ page_obj.paginator.count }} payment{{ page_obj.paginator.count|pluralize }}. "Mark Received" is for confirmed bank-transfer payments — ZainPay payments confirm themselves automatically.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card"><div class="card-body">
+  <form method="get" class="filters-bar mb-16">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search reference, receipt no., student…" style="min-width:240px; padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:.85rem;">
+    <select name="status">
+      <option value="">All statuses</option>
+      {% for value, label in status_choices %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="gateway">
+      <option value="">All gateways</option>
+      {% for value, label in gateway_choices %}<option value="{{ value }}" {% if gateway == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+    {% if q or status or gateway %}<a href="{% url 'admin_console:payments_list' %}" class="btn btn-secondary btn-sm">Clear</a>{% endif %}
+  </form>
+
+  <div class="table-wrap"><table class="data-table">
+    <thead><tr><th>Reference</th><th>Student</th><th>Amount</th><th>Gateway</th><th>Status</th><th>Date</th><th></th></tr></thead>
+    <tbody>
+      {% for pay in page_obj %}
+      <tr>
+        <td>{{ pay.reference }}</td>
+        <td>{{ pay.invoice.student }}</td>
+        <td>₦{{ pay.amount|floatformat:0 }}</td>
+        <td>{{ pay.get_gateway_display }}</td>
+        <td><span class="badge badge-{% if pay.status == 'success' %}success{% elif pay.status == 'pending' %}gold{% else %}danger{% endif %}">{{ pay.get_status_display }}</span></td>
+        <td>{{ pay.created_at|date:"d M Y" }}</td>
+        <td class="text-right">
+          {% if pay.status == 'pending' %}
+          <form method="post" action="{% url 'admin_console:payment_mark_received' %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="pk" value="{{ pay.pk }}">
+            <input type="hidden" name="qs" value="{{ querystring }}">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-check"></i> Mark Received</button>
+          </form>
+          {% else %}
+          <a class="btn btn-secondary btn-sm" href="{% url 'payments:fee_invoice' pay.invoice.student.pk pay.invoice.term.pk %}"><i class="fa-solid fa-eye"></i> View Invoice</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}<tr><td colspan="7" class="text-muted">No payments match that search/filter.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+
+  {% include 'admin_console/_pagination.html' %}
+</div></div>
+{% endblock %}

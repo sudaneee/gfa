@@ -1,0 +1,50 @@
+{% extends "base_public.html" %}
+{% block title %}News &amp; Events — {{ school.name }}{% endblock %}
+{% block page_content %}
+<section class="page-header">
+  <div class="container"><h1>News &amp; Events</h1><p>Stay up to date with what's happening at {{ school.name }}.</p>
+  <div class="breadcrumbs"><a href="{% url 'website:home' %}">Home</a><span class="sep">/</span><span>News &amp; Events</span></div></div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-title left"><span class="eyebrow">Upcoming</span><h2>Upcoming Events</h2></div>
+    <div class="news-grid">
+      {% for e in upcoming_events %}
+      <div class="news-card">
+        <div class="news-img"><i class="fa-solid fa-calendar"></i></div>
+        <div class="body">
+          <span class="tag">{{ e.get_category_display }}</span>
+          <h4>{{ e.title }}</h4>
+          <p class="text-muted text-sm">{{ e.description }}</p>
+          <div class="meta"><i class="fa-regular fa-calendar"></i> {{ e.date|date:"d M Y" }}</div>
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-muted">No upcoming events scheduled yet — check back soon.</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--gray-50);">
+  <div class="container">
+    <div class="section-title left"><span class="eyebrow">Highlights</span><h2>Recent News &amp; Past Activities</h2></div>
+    <div class="news-grid">
+      {% for e in past_events %}
+      <div class="news-card">
+        <div class="news-img"><i class="fa-solid fa-calendar-check"></i></div>
+        <div class="body">
+          <span class="tag">{{ e.get_category_display }}</span>
+          <h4>{{ e.title }}</h4>
+          <p class="text-muted text-sm">{{ e.description }}</p>
+          <div class="meta"><i class="fa-regular fa-calendar"></i> {{ e.date|date:"d M Y" }}</div>
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-muted">No past events recorded yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

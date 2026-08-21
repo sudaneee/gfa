@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>
+const session = initDashLayout({ role: 'admin', title: 'Dashboard', subtitle: 'Welcome back — here is what is happening at Glittering Field Academy today.' });
+</script>
+
+<template id="pageTemplate">
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="top"><div class="icon icon-navy"><i class="fa-solid fa-user-graduate"></i></div></div>
+      <div class="value" id="statStudents">0</div><div class="label">Total Students</div>
+      <span class="trend up"><i class="fa-solid fa-arrow-up"></i> Active enrolment</span>
+    </div>
+    <div class="stat-card">
+      <div class="top"><div class="icon icon-purple"><i class="fa-solid fa-chalkboard-user"></i></div></div>
+      <div class="value" id="statStaff">0</div><div class="label">Active Staff</div>
+      <span class="trend up"><i class="fa-solid fa-arrow-up"></i> Fully staffed</span>
+    </div>
+    <div class="stat-card">
+      <div class="top"><div class="icon icon-gold"><i class="fa-solid fa-file-signature"></i></div></div>
+      <div class="value" id="statApplications">0</div><div class="label">Pending Applications</div>
+      <span class="trend"><a href="applications.html" style="color:var(--navy-700);">Review now →</a></span>
+    </div>
+    <div class="stat-card">
+      <div class="top"><div class="icon icon-green"><i class="fa-solid fa-people-roof"></i></div></div>
+      <div class="value" id="statClasses">0</div><div class="label">Total Classes</div>
+      <span class="trend up">Across 5 levels</span>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="top"><div class="icon icon-green"><i class="fa-solid fa-sack-dollar"></i></div></div>
+      <div class="value" id="statFeesCollected">₦0</div><div class="label">Fees Collected (Term)</div>
+      <div class="progress-track mt-8"><div class="progress-fill green" id="feesProgress" style="width:0%;"></div></div>
+    </div>
+    <div class="stat-card">
+      <div class="top"><div class="icon icon-navy"><i class="fa-solid fa-hand-holding-dollar"></i></div></div>
+      <div class="value" id="statFeesOutstanding">₦0</div><div class="label">Outstanding Fees</div>
+      <span class="trend down"><i class="fa-solid fa-arrow-down"></i> Needs follow-up</span>
+    </div>
+    <div class="stat-card">
+      <div class="top"><div class="icon icon-purple"><i class="fa-solid fa-calendar-check"></i></div></div>
+      <div class="value" id="statAttendance">0%</div><div class="label">Attendance Rate (This Week)</div>
+      <div class="progress-track mt-8"><div class="progress-fill" id="attendanceProgress" style="width:0%;"></div></div>
+    </div>
+    <div class="stat-card">
+      <div class="top"><div class="icon icon-gold"><i class="fa-solid fa-laptop"></i></div></div>
+      <div class="value" id="statExams">0</div><div class="label">Upcoming/Active Examinations</div>
+      <span class="trend">CBT ready</span>
+    </div>
+  </div>
+
+  <div class="dash-grid-main">
+    <div class="card">
+      <div class="card-header"><h3>Student Population by Level</h3><span class="badge badge-gray">This Session</span></div>
+      <div class="card-body"><div class="bar-chart" id="levelChart"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Fee Collection Status</h3></div>
+      <div class="card-body"><div class="donut-wrap" id="feeDonut"></div></div>
+    </div>
+  </div>
+
+  <div class="dash-grid-main">
+    <div class="card">
+      <div class="card-header"><h3>Recent Activities</h3></div>
+      <div class="card-body"><div class="activity-list" id="activityList"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Applications by Status</h3></div>
+      <div class="card-body"><div class="legend-list" id="appStatusLegend"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3>Quick Actions</h3></div>
+    <div class="card-body">
+      <div class="quick-actions-grid">
+        <a class="quick-action" href="applications.html"><i class="fa-solid fa-file-signature"></i><span>New Application</span></a>
+        <a class="quick-action" href="students.html?add=1"><i class="fa-solid fa-user-plus"></i><span>Add Student</span></a>
+        <a class="quick-action" href="teachers.html?add=1"><i class="fa-solid fa-chalkboard-user"></i><span>Add Teacher</span></a>
+        <a class="quick-action" href="payments.html"><i class="fa-solid fa-money-check-dollar"></i><span>Record Payment</span></a>
+        <a class="quick-action" href="results.html"><i class="fa-solid fa-pen-to-square"></i><span>Enter Result</span></a>
+        <a class="quick-action" href="attendance.html#mark"><i class="fa-solid fa-clipboard-check"></i><span>Mark Attendance</span></a>
+        <a class="quick-action" href="announcements.html?add=1"><i class="fa-solid fa-bullhorn"></i><span>New Announcement</span></a>
+        <a class="quick-action" href="reports.html"><i class="fa-solid fa-chart-column"></i><span>Generate Report</span></a>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+
+const db = DB.load();
+const activeStudents = db.students.filter(s => s.status === 'Active');
+document.getElementById('statStudents').textContent = activeStudents.length;
+document.getElementById('statStaff').textContent = db.teachers.filter(t => t.status === 'Active').length;
+document.getElementById('statApplications').textContent = db.applications.filter(a => a.status === 'Pending' || a.status === 'Under Review').length;
+document.getElementById('statClasses').textContent = db.classes.length;
+
+const totalCollected = db.invoices.reduce((s, i) => s + i.paid, 0);
+const totalBilled = db.invoices.reduce((s, i) => s + i.total, 0);
+const totalOutstanding = totalBilled - totalCollected;
+document.getElementById('statFeesCollected').textContent = formatCurrency(totalCollected);
+document.getElementById('statFeesOutstanding').textContent = formatCurrency(totalOutstanding);
+document.getElementById('feesProgress').style.width = Math.round((totalCollected / totalBilled) * 100) + '%';
+
+const recentAttendance = db.attendance.slice(-200);
+const presentCount = recentAttendance.filter(a => a.status === 'Present').length;
+const attendanceRate = Math.round((presentCount / recentAttendance.length) * 100);
+document.getElementById('statAttendance').textContent = attendanceRate + '%';
+document.getElementById('attendanceProgress').style.width = attendanceRate + '%';
+document.getElementById('statExams').textContent = db.exams.length;
+
+// Level bar chart
+const levelCounts = LEVELS.map(l => activeStudents.filter(s => s.level === l).length);
+const maxCount = Math.max(...levelCounts, 1);
+document.getElementById('levelChart').innerHTML = LEVELS.map((l, i) => `
+  <div class="bar-col">
+    <div class="bar" style="height:${Math.max((levelCounts[i] / maxCount) * 100, 6)}%;"><span class="bar-val">${levelCounts[i]}</span></div>
+    <span class="bar-label">${l}</span>
+  </div>`).join('');
+
+// Fee donut
+const paidCount = db.invoices.filter(i => i.status === 'Paid').length;
+const partialCount = db.invoices.filter(i => i.status === 'Partial').length;
+const unpaidCount = db.invoices.filter(i => i.status === 'Unpaid').length;
+const totalInv = db.invoices.length || 1;
+const pPaid = Math.round((paidCount / totalInv) * 100), pPartial = Math.round((partialCount / totalInv) * 100), pUnpaid = 100 - pPaid - pPartial;
+document.getElementById('feeDonut').innerHTML = `
+  <div class="donut" style="background:conic-gradient(#1a9c62 0 ${pPaid}%, #e0a825 ${pPaid}% ${pPaid + pPartial}%, #d3413f ${pPaid + pPartial}% 100%);">
+    <div class="donut-center"><strong>${totalInv}</strong><span>Invoices</span></div>
+  </div>
+  <div class="legend-list">
+    <div class="legend-item"><span class="dot" style="background:#1a9c62;"></span><span class="lbl">Paid</span><span class="val">${paidCount}</span></div>
+    <div class="legend-item"><span class="dot" style="background:#e0a825;"></span><span class="lbl">Partial</span><span class="val">${partialCount}</span></div>
+    <div class="legend-item"><span class="dot" style="background:#d3413f;"></span><span class="lbl">Unpaid</span><span class="val">${unpaidCount}</span></div>
+  </div>`;
+
+// Recent activities (derived from latest applications + payments)
+const activities = [];
+db.applications.slice(0, 3).forEach(a => activities.push({ icon: 'fa-file-signature', color: 'icon-gold', text: `New application from ${a.firstName} ${a.lastName} for ${a.applyingFor}`, date: a.applicationDate }));
+db.payments.slice(-3).forEach(p => { const s = db.students.find(s => s.id === p.studentId); activities.push({ icon: 'fa-money-check-dollar', color: 'icon-green', text: `Payment of ${formatCurrency(p.amount)} received from ${s ? fullName(s) : 'a student'}`, date: p.date }); });
+activities.sort((a, b) => new Date(b.date) - new Date(a.date));
+document.getElementById('activityList').innerHTML = activities.slice(0, 6).map(a => `
+  <div class="activity-item"><div class="dot-icon ${a.color}"><i class="fa-solid ${a.icon}"></i></div><div><p>${a.text}</p><span>${formatDate(a.date)}</span></div></div>`).join('') || '<p class="text-muted">No recent activity.</p>';
+
+// Applications by status legend
+const statusColors = { Pending: '#c9821a', 'Under Review': '#2461c9', Shortlisted: '#4c2b94', Interview: '#e0a825', Approved: '#1a9c62', Admitted: '#16265c', Rejected: '#d3413f' };
+const statusCounts = {};
+db.applications.forEach(a => statusCounts[a.status] = (statusCounts[a.status] || 0) + 1);
+document.getElementById('appStatusLegend').innerHTML = Object.keys(statusCounts).map(st => `
+  <div class="legend-item"><span class="dot" style="background:${statusColors[st] || '#999'};"></span><span class="lbl">${st}</span><span class="val">${statusCounts[st]}</span></div>`).join('');
+</script>
+</body>
+</html>

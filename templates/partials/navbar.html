@@ -1,0 +1,50 @@
+{% load static %}
+<div class="topbar"><div class="container">
+  <div class="topbar-links">
+    <span><i class="fa-solid fa-phone"></i> {{ school.phone_list.0 }}</span>
+    <span><i class="fa-solid fa-location-dot"></i> {{ school.address }}</span>
+  </div>
+  <div class="topbar-cta"><a href="{% url 'admissions:info' %}">{{ school.current_session }} Admission Open <i class="fa-solid fa-arrow-right"></i></a></div>
+</div></div>
+
+<header class="navbar"><div class="container">
+  <a href="{% url 'website:home' %}" class="brand">
+    <div class="brand-mark">GFA</div>
+    <div class="brand-text"><div class="name">{{ school.name }}</div><div class="tagline">{{ school.tagline }}</div></div>
+  </a>
+  <nav class="nav-links">
+    <a href="{% url 'website:home' %}" class="{% if active_page == 'home' %}active{% endif %}">Home</a>
+    <a href="{% url 'website:about' %}" class="{% if active_page == 'about' %}active{% endif %}">About</a>
+    <a href="{% url 'website:academics' %}" class="{% if active_page == 'academics' %}active{% endif %}">Academics</a>
+    <a href="{% url 'admissions:info' %}" class="{% if active_page == 'admissions' %}active{% endif %}">Admissions</a>
+    <a href="{% url 'website:facilities' %}" class="{% if active_page == 'facilities' %}active{% endif %}">Facilities</a>
+    <a href="{% url 'website:news_events' %}" class="{% if active_page == 'news_events' %}active{% endif %}">News &amp; Events</a>
+    <a href="{% url 'website:contact' %}" class="{% if active_page == 'contact' %}active{% endif %}">Contact</a>
+  </nav>
+  <div class="nav-actions">
+    {% if user.is_authenticated %}
+      <a href="{% url 'portal:home' %}" class="btn btn-secondary btn-sm">My Portal</a>
+    {% else %}
+      <a href="{% url 'accounts:login' %}" class="btn btn-secondary btn-sm">Parent Portal</a>
+    {% endif %}
+    <a href="{% url 'admissions:apply' %}" class="btn btn-primary btn-sm">Apply Now</a>
+    <button class="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+</div></header>
+
+<div class="mobile-nav">
+  <div class="mobile-nav-header">
+    <div class="brand"><div class="brand-mark">GFA</div><div class="brand-text"><div class="name">{{ school.name }}</div></div></div>
+    <button class="mobile-nav-close btn btn-icon btn-ghost"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <a href="{% url 'website:home' %}">Home</a>
+  <a href="{% url 'website:about' %}">About Us</a>
+  <a href="{% url 'website:academics' %}">Academics</a>
+  <a href="{% url 'admissions:info' %}">Admissions</a>
+  <a href="{% url 'website:facilities' %}">Facilities</a>
+  <a href="{% url 'website:news_events' %}">News &amp; Events</a>
+  <a href="{% url 'website:contact' %}">Contact</a>
+  {% if user.is_authenticated %}<a href="{% url 'portal:home' %}">My Portal</a>{% else %}<a href="{% url 'accounts:login' %}">Parent Portal</a>{% endif %}
+  <a href="{% url 'admissions:track' %}">Track Application</a>
+  <a href="{% url 'admissions:apply' %}" class="btn btn-primary btn-block">Apply Now</a>
+</div>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Examinations — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Examinations (CBT)', subtitle: 'Manage computer-based tests, question banks and results.' });</script>
+
+<template id="pageTemplate">
+  <div class="tabs mb-24">
+    <button class="tab-btn" data-tabkey="cbt">CBT Exams</button>
+    <button class="tab-btn" data-tabkey="questions">Question Bank</button>
+    <button class="tab-btn" data-tabkey="results">Exam Results</button>
+  </div>
+
+  <div data-tabpanel="cbt">
+    <div class="grid-3" id="examCards"></div>
+  </div>
+
+  <div data-tabpanel="questions" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar"><select id="qExamSelect"></select></div>
+      <div id="questionsList"></div>
+    </div></div>
+  </div>
+
+  <div data-tabpanel="results" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Student</th><th>Exam</th><th>Score</th><th>Percentage</th><th>Date</th></tr></thead>
+        <tbody id="examResultsBody"></tbody>
+      </table></div>
+      <div id="noAttempts" class="empty-state" style="display:none;"><i class="fa-solid fa-laptop"></i><h4>No exam attempts yet</h4><p>Results will appear here once students take a CBT exam from the Student Portal.</p></div>
+    </div></div>
+  </div>
+</template>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+const db = DB.load();
+
+document.getElementById('examCards').innerHTML = db.exams.map(e => `
+  <div class="card card-body">
+    <span class="badge badge-purple">${e.subject}</span>
+    <h4 class="mt-8">${e.title}</h4>
+    <p class="text-muted text-sm">${e.class} &middot; ${e.questions.length} Questions &middot; ${e.durationMinutes} mins</p>
+    <p class="text-sm text-muted">${e.instructions}</p>
+  </div>`).join('');
+
+document.getElementById('qExamSelect').innerHTML = db.exams.map(e => `<option value="${e.id}">${e.title} (${e.class})</option>`).join('');
+function renderQuestions() {
+  const exam = db.exams.find(e => e.id === document.getElementById('qExamSelect').value);
+  document.getElementById('questionsList').innerHTML = exam.questions.map((q, i) => `
+    <div class="card card-body mb-16">
+      <p class="text-muted text-sm mb-8">Question ${i + 1}</p>
+      <h4 class="mb-16">${q.q}</h4>
+      <div class="grid-2">${q.options.map((o, oi) => `<div class="flex gap-8" style="padding:8px 12px;border-radius:8px;${oi===q.answer?'background:var(--success-bg);color:var(--success);font-weight:700;':'background:var(--gray-50);'}"><span>${String.fromCharCode(65+oi)}.</span><span>${o}</span>${oi===q.answer?' <i class="fa-solid fa-circle-check" style="margin-left:auto;"></i>':''}</div>`).join('')}</div>
+    </div>`).join('');
+}
+document.getElementById('qExamSelect').addEventListener('change', renderQuestions);
+renderQuestions();
+
+function renderResults() {
+  const attempts = db.examAttempts || [];
+  document.getElementById('noAttempts').style.display = attempts.length ? 'none' : 'block';
+  document.getElementById('examResultsBody').innerHTML = attempts.map(a => {
+    const s = db.students.find(s => s.id === a.studentId);
+    const exam = db.exams.find(e => e.id === a.examId);
+    const pct = Math.round((a.score / (exam ? exam.questions.length : 10)) * 100);
+    return `<tr><td>${s ? fullName(s) : a.studentId}</td><td>${exam ? exam.title : a.examId}</td><td>${a.score}/${exam ? exam.questions.length : 10}</td><td><span class="badge badge-${pct>=50?'success':'danger'}">${pct}%</span></td><td>${formatDate(a.date)}</td></tr>`;
+  }).join('');
+}
+renderResults();
+
+initHashTabs('cbt');
+</script>
+</body>
+</html>

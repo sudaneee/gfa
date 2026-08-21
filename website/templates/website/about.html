@@ -1,0 +1,56 @@
+{% extends "base_public.html" %}
+{% block title %}About Us — {{ school.name }}{% endblock %}
+{% block page_content %}
+<section class="page-header">
+  <div class="container">
+    <h1>About {{ school.name }}</h1>
+    <p>{{ school.tagline }} — {{ school.slogan }}.</p>
+    <div class="breadcrumbs"><a href="{% url 'website:home' %}">Home</a><span class="sep">/</span><span>About Us</span></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container grid-2" style="align-items:center;">
+    <div>
+      <span class="eyebrow">{{ who_we_are.eyebrow }}</span>
+      <h2>{{ who_we_are.heading }}</h2>
+      {% for p in who_we_are.paragraphs %}<p class="text-muted">{{ p }}</p>{% endfor %}
+    </div>
+    <div class="grid-2">
+      {% for card in stats %}
+      <div class="feature-card"><div class="feature-icon"><i class="{{ card.icon }}"></i></div><h4>{{ card.title }}</h4><p>{{ card.description }}</p></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--gray-50);">
+  <div class="container">
+    <div class="grid-3">
+      {% for card in mission_vision %}
+      <div class="card card-body"><div class="feature-icon"><i class="{{ card.icon }}"></i></div><h3>{{ card.title }}</h3><p class="text-muted">{{ card.description }}</p></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-title"><span class="eyebrow">Our Philosophy</span><h2>Academics and Morality — In Practice</h2></div>
+    <div class="feature-grid">
+      {% for card in philosophy %}
+      <div class="feature-card"><div class="feature-icon"><i class="{{ card.icon }}"></i></div><h4>{{ card.title }}</h4><p>{{ card.description }}</p></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section-sm">
+  <div class="container">
+    <div class="cta-band">
+      <div><h2>Ready to Join Our Family?</h2><p>Applications for the {{ school.current_session }} session are open now.</p></div>
+      <a href="{% url 'admissions:apply' %}" class="btn btn-primary btn-lg">Apply Now</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

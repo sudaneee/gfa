@@ -1,0 +1,63 @@
+{% extends "base_dashboard.html" %}
+{% block title %}{{ application.full_name }} — {{ school.name }}{% endblock %}
+{% block dash_title %}{{ application.full_name }}{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted"><a href="{% url 'admin_console:applications_list' %}">&larr; Back to Applications</a> &middot; {{ application.application_number }}</div>{% endblock %}
+
+{% block dash_content %}
+<div class="dash-grid-main">
+  <div class="card"><div class="card-header"><h3>Applicant</h3></div><div class="card-body">
+    <div class="rc-meta">
+      <div class="item"><span class="k">Name</span><span class="v">{{ application.full_name }}</span></div>
+      <div class="item"><span class="k">Gender</span><span class="v">{{ application.get_gender_display }}</span></div>
+      <div class="item"><span class="k">Date of Birth</span><span class="v">{{ application.date_of_birth }}</span></div>
+      <div class="item"><span class="k">State of Origin</span><span class="v">{{ application.state_of_origin }}</span></div>
+      <div class="item"><span class="k">LGA</span><span class="v">{{ application.lga }}</span></div>
+      <div class="item"><span class="k">Applying For</span><span class="v">{{ application.get_applying_for_display }}</span></div>
+      <div class="item"><span class="k">Previous School</span><span class="v">{{ application.previous_school|default:"—" }}</span></div>
+      <div class="item"><span class="k">Previous Class</span><span class="v">{{ application.previous_class|default:"—" }}</span></div>
+    </div>
+    <h4 class="mt-24 mb-8">Parent / Guardian</h4>
+    <div class="rc-meta">
+      <div class="item"><span class="k">Name</span><span class="v">{{ application.parent_name }}</span></div>
+      <div class="item"><span class="k">Relationship</span><span class="v">{{ application.get_relationship_display }}</span></div>
+      <div class="item"><span class="k">Phone</span><span class="v">{{ application.phone }}</span></div>
+      <div class="item"><span class="k">Email</span><span class="v">{{ application.email }}</span></div>
+      <div class="item"><span class="k">Address</span><span class="v">{{ application.address }}</span></div>
+    </div>
+    {% if application.passport_photo or application.birth_certificate or application.previous_result or application.other_document %}
+    <h4 class="mt-24 mb-8">Documents</h4>
+    <div class="flex gap-12 flex-wrap">
+      {% if application.passport_photo %}<a class="btn btn-secondary btn-sm" href="{{ application.passport_photo.url }}" target="_blank"><i class="fa-solid fa-image"></i> Passport Photo</a>{% endif %}
+      {% if application.birth_certificate %}<a class="btn btn-secondary btn-sm" href="{{ application.birth_certificate.url }}" target="_blank"><i class="fa-solid fa-file"></i> Birth Certificate</a>{% endif %}
+      {% if application.previous_result %}<a class="btn btn-secondary btn-sm" href="{{ application.previous_result.url }}" target="_blank"><i class="fa-solid fa-file"></i> Previous Result</a>{% endif %}
+      {% if application.other_document %}<a class="btn btn-secondary btn-sm" href="{{ application.other_document.url }}" target="_blank"><i class="fa-solid fa-file"></i> Other Document</a>{% endif %}
+    </div>
+    {% endif %}
+  </div></div>
+
+  <div>
+    <div class="card mb-24"><div class="card-header"><h3>Status</h3></div><div class="card-body">
+      <p><span class="badge badge-{% if application.status == 'admitted' or application.status == 'approved' %}success{% elif application.status == 'rejected' %}danger{% else %}gold{% endif %}" style="font-size:.9rem;">{{ application.get_status_display }}</span></p>
+      <form method="post" class="mt-16">
+        {% csrf_token %}
+        <div class="form-group">
+          <label>Change status to</label>
+          <select name="status">
+            {% for value, label in status_choices %}<option value="{{ value }}" {% if application.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;"><i class="fa-solid fa-check"></i> Update Status</button>
+      </form>
+    </div></div>
+
+    <div class="card"><div class="card-header"><h3>Timeline</h3></div><div class="card-body">
+      {% for log in status_logs %}
+      <div class="flex gap-8 mb-12" style="align-items:flex-start;">
+        <i class="fa-solid fa-circle-dot text-muted" style="margin-top:4px;font-size:.6rem;"></i>
+        <div><strong>{{ log.get_stage_display }}</strong><br><span class="text-muted text-sm">{{ log.created_at|date:"d M Y, H:i" }}</span>{% if log.note %}<br><span class="text-sm">{{ log.note }}</span>{% endif %}</div>
+      </div>
+      {% empty %}<p class="text-muted text-sm">No status changes recorded yet.</p>{% endfor %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

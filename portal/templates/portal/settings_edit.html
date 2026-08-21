@@ -1,0 +1,24 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Edit School Information — {{ school.name }}{% endblock %}
+{% block dash_title %}Edit School Information{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted"><a href="{% url 'portal:settings' %}">&larr; Back to Settings</a></div>{% endblock %}
+
+{% block dash_content %}
+<div class="card" style="max-width:720px;"><div class="card-body">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="form-group">
+      <label>{{ field.label }}{% if field.field.required %} <span class="req">*</span>{% endif %}</label>
+      {{ field }}
+      {% for e in field.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+      {% if field.help_text %}<div class="form-hint">{{ field.help_text }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <div class="flex gap-12 mt-16">
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+      <a href="{% url 'portal:settings' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

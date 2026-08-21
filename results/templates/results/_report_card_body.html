@@ -1,0 +1,59 @@
+{% load result_extras %}
+{% comment %}
+The complete individual report card — the ONLY way a result is ever
+presented to a parent/student/admin (never the entry/update grid). Shared
+by report_card.html (single student, on-screen + single PDF) and
+report_card_bulk.html (whole-class PDF, one of these per student, wrapped
+in a page-break container by the caller). Context: student, term, results,
+total, average, overall_grade, attendance_rate, position, class_size,
+today, components.
+{% endcomment %}
+<div class="report-card-doc">
+  <div class="rc-header">
+    {% if student.photo %}<img src="{{ student.photo.url }}" class="rc-photo" alt="">{% endif %}
+    <div class="brand-mark" style="margin:0 auto 10px;">GFA</div>
+    <h2>{{ school.name }}</h2>
+    <p>{{ school.address }}</p>
+  </div>
+  <div class="rc-meta">
+    <div class="item"><span class="k">Student Name</span><span class="v">{{ student.full_name }}</span></div>
+    <div class="item"><span class="k">Admission No.</span><span class="v">{{ student.admission_number }}</span></div>
+    <div class="item"><span class="k">Class</span><span class="v">{{ student.class_label }}</span></div>
+    <div class="item"><span class="k">Session</span><span class="v">{{ term.session.name }}</span></div>
+    <div class="item"><span class="k">Term</span><span class="v">{{ term.get_name_display }}</span></div>
+    <div class="item"><span class="k">Attendance</span><span class="v">{{ attendance_rate }}%</span></div>
+  </div>
+  <div class="table-wrap"><table class="data-table">
+    <thead><tr>
+      <th>Subject</th>
+      {% for c in components %}<th>{{ c.name }}</th>{% endfor %}
+      <th>Exam</th><th>Total</th><th>Grade</th><th>Remark</th>
+    </tr></thead>
+    <tbody>
+      {% for r in results %}
+      <tr>
+        <td>{{ r.subject.name }}</td>
+        {% for c in components %}<td>{{ r|component_value:c }}</td>{% endfor %}
+        <td>{{ r.exam }}</td><td>{{ r.total }}</td><td>{{ r.grade }}</td><td>{{ r.remark }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="{{ components|length|add:5 }}" class="text-muted">No results recorded for this term yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="rc-summary">
+    <div class="box"><strong>{{ total }}</strong><span>Total Score</span></div>
+    <div class="box"><strong>{{ average }}%</strong><span>Average</span></div>
+    <div class="box"><strong>{{ overall_grade.grade|default:"-" }}</strong><span>Overall Grade</span></div>
+    <div class="box"><strong>{% if position %}{{ position }} of {{ class_size }}{% else %}-{% endif %}</strong><span>Class Position</span></div>
+  </div>
+  <div class="rc-comments">
+    <div class="box"><h5>Class Teacher's Comment</h5><p>{% if average >= 70 %}An excellent result. Keep up the outstanding performance.{% elif average >= 50 %}A good result this term. Continued effort will yield even better results.{% else %}Needs improvement — additional support recommended at home.{% endif %}</p></div>
+    <div class="box"><h5>Principal's Comment</h5><p>{% if average >= 60 %}Well done. Promoted to the next class.{% else %}Kindly encourage more reading and practice at home.{% endif %}</p></div>
+  </div>
+  <div class="rc-signatures">
+    <div class="sig-line"><span class="sig-space"></span>Class Teacher's Signature</div>
+    <div class="sig-line"><span class="sig-space"></span>Principal's Signature</div>
+  </div>
+  <p class="text-muted text-sm text-center mt-16">Issued {{ today }}</p>
+</div>

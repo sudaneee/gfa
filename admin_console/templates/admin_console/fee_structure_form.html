@@ -1,0 +1,45 @@
+{% extends "base_dashboard.html" %}
+{% block title %}{% if mode == 'create' %}Add{% else %}Edit{% endif %} Fee Structure — {{ school.name }}{% endblock %}
+{% block dash_title %}{% if mode == 'create' %}Add Fee Structure{% else %}Edit Fee Structure{% endif %}{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted"><a href="{% url 'admin_console:fee_structures_list' %}">&larr; Back to Fee Structures</a></div>{% endblock %}
+
+{% block dash_content %}
+<div class="card" style="max-width:820px;"><div class="card-body">
+  <form method="post">
+    {% csrf_token %}
+    <div class="dash-grid-main">
+      {% for field in form %}
+      <div class="form-group">
+        <label>{{ field.label }}{% if field.field.required %} <span class="req">*</span>{% endif %}</label>
+        {{ field }}
+        {% for e in field.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <h4 class="mt-24 mb-8">Fee Items</h4>
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="form-error" style="display:block;">{{ formset.non_form_errors }}</div>{% endif %}
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>Category</th><th>Amount</th><th>Optional</th>{% if formset.can_delete %}<th>Remove</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for item_form in formset %}
+        <tr>
+          {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
+          <td>{{ item_form.category }}{% for e in item_form.category.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</td>
+          <td>{{ item_form.amount }}{% for e in item_form.amount.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</td>
+          <td>{{ item_form.is_optional }}</td>
+          {% if formset.can_delete %}<td>{{ item_form.DELETE }}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    <p class="text-muted text-sm mt-8">"Optional" items (e.g. a Jacket line) are excluded from the auto-generated invoice total. Leave a row's Category blank to skip it.</p>
+
+    <div class="flex gap-12 mt-16">
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> {% if mode == 'create' %}Create{% else %}Save Changes{% endif %}</button>
+      <a href="{% url 'admin_console:fee_structures_list' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

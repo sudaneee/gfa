@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Settings', subtitle: 'School information, grading configuration and demo data controls.' });</script>
+
+<template id="pageTemplate">
+  <div class="grid-2">
+    <div class="card"><div class="card-header"><h3>School Information</h3></div>
+      <div class="card-body">
+        <div class="review-grid">
+          <div class="item"><span class="k">School Name</span><span class="v">Glittering Field Academy</span></div>
+          <div class="item"><span class="k">Tagline</span><span class="v">Academics and Morality</span></div>
+          <div class="item"><span class="k">Slogan</span><span class="v">Raising Leaders, Building Future</span></div>
+          <div class="item"><span class="k">Address</span><span class="v">No. 5 Yarima Dalhatu Crescent, Suleja, Niger State</span></div>
+          <div class="item"><span class="k">Current Session</span><span class="v">2026/2027</span></div>
+          <div class="item"><span class="k">Approvals</span><span class="v">WAEC, NECO, NBAIS</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="card-header"><h3>Grade Boundaries</h3></div>
+      <div class="card-body">
+        <table class="data-table" style="min-width:0;"><thead><tr><th>Grade</th><th>Range</th><th>Point</th><th>Remark</th></tr></thead>
+        <tbody id="gradeTable"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-24"><div class="card-header"><h3>Demo Data Management</h3></div>
+    <div class="card-body">
+      <p class="text-muted">This prototype stores all data in your browser's LocalStorage. Use the button below to wipe all changes and restore the original demo dataset (students, applications, results, attendance, fees, etc.).</p>
+      <div class="alert alert-warning"><i class="fa-solid fa-triangle-exclamation"></i> This action cannot be undone. All data you have added or modified during this demo session will be lost.</div>
+      <button class="btn btn-danger" id="resetBtn"><i class="fa-solid fa-arrows-rotate"></i> Reset Demo Data</button>
+    </div>
+  </div>
+
+  <div class="card mt-24"><div class="card-header"><h3>Demo Login Accounts</h3></div>
+    <div class="card-body">
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Role</th><th>Email</th><th>Password</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-purple">Administrator</span></td><td>admin@gfa.edu.ng</td><td>admin123</td></tr>
+          <tr><td><span class="badge badge-info">Teacher</span></td><td>teacher@gfa.edu.ng</td><td>teacher123</td></tr>
+          <tr><td><span class="badge badge-warning">Parent</span></td><td>parent@gfa.edu.ng</td><td>parent123</td></tr>
+          <tr><td><span class="badge badge-success">Student</span></td><td>student@gfa.edu.ng</td><td>student123</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</template>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+
+document.getElementById('gradeTable').innerHTML = GRADE_BOUNDARIES.map(g => `
+  <tr><td><span class="badge badge-${g.grade==='F'?'danger':g.grade==='A'?'success':'gray'}">${g.grade}</span></td><td>${g.min} – ${g.max}</td><td>${g.point}</td><td>${g.remark}</td></tr>`).join('');
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('Are you sure you want to reset all demo data? This cannot be undone.')) {
+    DB.reset();
+    toast('Demo data has been reset successfully.', 'success');
+    setTimeout(() => window.location.href = 'index.html', 800);
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Attendance Management', subtitle: 'Mark daily attendance and review attendance records.' });</script>
+
+<template id="pageTemplate">
+  <div class="tabs mb-24">
+    <button class="tab-btn" data-tabkey="mark">Mark Attendance</button>
+    <button class="tab-btn" data-tabkey="records">Attendance Records</button>
+    <button class="tab-btn" data-tabkey="reports">Reports</button>
+  </div>
+
+  <div data-tabpanel="mark">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar">
+        <select id="markSession"><option>2026/2027</option></select>
+        <select id="markTerm"><option>First Term</option><option>Second Term</option><option>Third Term</option></select>
+        <select id="markClass"></select>
+        <input type="date" id="markDate" value="2026-08-17">
+        <button class="btn btn-primary" id="loadClassBtn"><i class="fa-solid fa-arrow-rotate-right"></i> Load Class</button>
+      </div>
+      <div class="table-wrap"><table class="data-table" id="markTable">
+        <thead><tr><th>Admission No.</th><th>Name</th><th>Present</th><th>Absent</th><th>Late</th></tr></thead>
+        <tbody id="markTableBody"></tbody>
+      </table></div>
+      <div class="flex-between mt-16">
+        <span class="text-muted text-sm" id="markSummary"></span>
+        <button class="btn btn-primary" id="saveAttendanceBtn"><i class="fa-solid fa-floppy-disk"></i> Save Attendance</button>
+      </div>
+    </div></div>
+  </div>
+
+  <div data-tabpanel="records" style="display:none;">
+    <div class="card"><div class="card-body">
+      <div class="filters-bar">
+        <select id="recordClass"></select>
+        <input type="date" id="recordDate" value="2026-08-17">
+      </div>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Admission No.</th><th>Name</th><th>Class</th><th>Status</th></tr></thead>
+        <tbody id="recordsTableBody"></tbody>
+      </table></div>
+    </div></div>
+  </div>
+
+  <div data-tabpanel="reports" style="display:none;">
+    <div class="stats-grid" id="reportStats"></div>
+    <div class="card"><div class="card-header"><h3>Weekly Attendance Trend</h3></div><div class="card-body"><div class="bar-chart" id="weeklyChart"></div></div></div>
+  </div>
+</template>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+const db = DB.load();
+
+document.getElementById('markClass').innerHTML = db.classes.flatMap(c => c.sections.map(s => `<option value="${c.name}|${s}">${c.name}${s}</option>`)).join('');
+document.getElementById('recordClass').innerHTML = '<option value="">All Classes</option>' + db.classes.flatMap(c => c.sections.map(s => `<option value="${c.name}${s}">${c.name}${s}</option>`)).join('');
+
+function loadMarkTable() {
+  const [cls, section] = document.getElementById('markClass').value.split('|');
+  const students = db.students.filter(s => s.class === cls && s.section === section && s.status === 'Active');
+  const date = document.getElementById('markDate').value;
+  document.getElementById('markTableBody').innerHTML = students.map(s => {
+    const existing = db.attendance.find(a => a.studentId === s.id && a.date === date);
+    const status = existing ? existing.status : 'Present';
+    return `<tr data-student="${s.id}">
+      <td>${s.admissionNo}</td><td>${fullName(s)}</td>
+      <td><input type="radio" name="att-${s.id}" value="Present" ${status==='Present'?'checked':''}></td>
+      <td><input type="radio" name="att-${s.id}" value="Absent" ${status==='Absent'?'checked':''}></td>
+      <td><input type="radio" name="att-${s.id}" value="Late" ${status==='Late'?'checked':''}></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="text-muted">No active students in this class.</td></tr>';
+  document.getElementById('markSummary').textContent = `${students.length} students in this class`;
+}
+
+function saveAttendance() {
+  const date = document.getElementById('markDate').value;
+  const [cls, section] = document.getElementById('markClass').value.split('|');
+  if (!date) { toast('Please select a date.', 'error'); return; }
+  const rows = document.querySelectorAll('#markTableBody tr[data-student]');
+  DB.update(dbw => {
+    rows.forEach(row => {
+      const studentId = row.dataset.student;
+      const checked = row.querySelector(`input[name="att-${studentId}"]:checked`);
+      const status = checked ? checked.value : 'Present';
+      const existingIdx = dbw.attendance.findIndex(a => a.studentId === studentId && a.date === date);
+      const record = { studentId, class: cls + section, date, status };
+      if (existingIdx > -1) dbw.attendance[existingIdx] = record; else dbw.attendance.push(record);
+    });
+  });
+  toast('Attendance saved successfully.', 'success');
+}
+
+function loadRecords() {
+  const clsFilter = document.getElementById('recordClass').value;
+  const date = document.getElementById('recordDate').value;
+  const dbNow = DB.load();
+  const records = dbNow.attendance.filter(a => a.date === date && (!clsFilter || a.class === clsFilter));
+  document.getElementById('recordsTableBody').innerHTML = records.map(a => {
+    const s = dbNow.students.find(s => s.id === a.studentId);
+    return `<tr><td>${s ? s.admissionNo : '-'}</td><td>${s ? fullName(s) : '-'}</td><td>${a.class}</td><td><span class="badge badge-${statusBadgeClass(a.status)}">${a.status}</span></td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="text-muted">No attendance recorded for this date/class.</td></tr>';
+}
+
+function loadReports() {
+  const dbNow = DB.load();
+  const total = dbNow.attendance.length;
+  const present = dbNow.attendance.filter(a => a.status === 'Present').length;
+  const absent = dbNow.attendance.filter(a => a.status === 'Absent').length;
+  const late = dbNow.attendance.filter(a => a.status === 'Late').length;
+  document.getElementById('reportStats').innerHTML = `
+    <div class="stat-card"><div class="icon icon-green" style="width:44px;height:44px;"><i class="fa-solid fa-check"></i></div><div class="value">${Math.round(present/total*100)}%</div><div class="label">Present Rate</div></div>
+    <div class="stat-card"><div class="icon icon-navy" style="width:44px;height:44px;"><i class="fa-solid fa-xmark"></i></div><div class="value">${Math.round(absent/total*100)}%</div><div class="label">Absent Rate</div></div>
+    <div class="stat-card"><div class="icon icon-gold" style="width:44px;height:44px;"><i class="fa-solid fa-clock"></i></div><div class="value">${Math.round(late/total*100)}%</div><div class="label">Late Rate</div></div>
+    <div class="stat-card"><div class="icon icon-purple" style="width:44px;height:44px;"><i class="fa-solid fa-database"></i></div><div class="value">${total}</div><div class="label">Total Records</div></div>`;
+
+  // group by date, last 10 unique dates
+  const byDate = {};
+  dbNow.attendance.forEach(a => { byDate[a.date] = byDate[a.date] || { present: 0, total: 0 }; byDate[a.date].total++; if (a.status === 'Present') byDate[a.date].present++; });
+  const dates = Object.keys(byDate).sort().slice(-8);
+  document.getElementById('weeklyChart').innerHTML = dates.map(d => {
+    const rate = Math.round((byDate[d].present / byDate[d].total) * 100);
+    return `<div class="bar-col"><div class="bar" style="height:${rate}%;"><span class="bar-val">${rate}%</span></div><span class="bar-label">${formatDate(d, {day:'2-digit',month:'2-digit'})}</span></div>`;
+  }).join('');
+}
+
+document.getElementById('loadClassBtn').addEventListener('click', loadMarkTable);
+document.getElementById('saveAttendanceBtn').addEventListener('click', saveAttendance);
+document.getElementById('recordClass').addEventListener('change', loadRecords);
+document.getElementById('recordDate').addEventListener('change', loadRecords);
+
+loadMarkTable();
+loadRecords();
+loadReports();
+initHashTabs('mark');
+</script>
+</body>
+</html>

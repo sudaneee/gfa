@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Students — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Student Management', subtitle: 'View, add and manage all enrolled students.' });</script>
+
+<template id="pageTemplate">
+  <div class="page-title-row">
+    <div></div>
+    <button class="btn btn-primary" id="addStudentBtn"><i class="fa-solid fa-user-plus"></i> Add Student</button>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <div class="filters-bar">
+        <div class="search-box"><i class="fa-solid fa-magnifying-glass"></i><input type="text" id="searchInput" placeholder="Search by name or admission no..."></div>
+        <select id="classFilter"><option value="">All Classes</option></select>
+        <select id="statusFilter"><option value="">All Status</option><option>Active</option><option>Inactive</option></select>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th></th><th>Admission No.</th><th>Name</th><th>Gender</th><th>Class</th><th>Guardian</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="studentTableBody"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none;"><i class="fa-solid fa-user-graduate"></i><h4>No students found</h4></div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+</template>
+
+<!-- Add / Edit Student Modal -->
+<div class="modal-overlay" id="studentModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="studentModalTitle">Add Student</h3><button class="modal-close" onclick="closeModal('studentModal')">&times;</button></div>
+    <div class="modal-body">
+      <form id="studentForm">
+        <input type="hidden" id="studentId">
+        <div class="form-row">
+          <div class="form-group"><label>First Name <span class="req">*</span></label><input type="text" id="sFirstName" required></div>
+          <div class="form-group"><label>Last Name <span class="req">*</span></label><input type="text" id="sLastName" required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Gender <span class="req">*</span></label><select id="sGender" required><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+          <div class="form-group"><label>Date of Birth</label><input type="date" id="sDob"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Class <span class="req">*</span></label><select id="sClass" required></select></div>
+          <div class="form-group"><label>Section <span class="req">*</span></label><select id="sSection" required></select></div>
+        </div>
+        <div class="form-group"><label>Guardian (Parent) <span class="req">*</span></label><select id="sGuardian" required></select></div>
+        <div class="form-group"><label>Status</label><select id="sStatus"><option>Active</option><option>Inactive</option></select></div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('studentModal')">Cancel</button>
+      <button class="btn btn-primary" id="saveStudentBtn">Save Student</button>
+    </div>
+  </div>
+</div>
+
+<!-- View Student Profile Modal -->
+<div class="modal-overlay" id="profileModal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3>Student Profile</h3><button class="modal-close" onclick="closeModal('profileModal')">&times;</button></div>
+    <div class="modal-body" id="profileModalBody"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print</button><button class="btn btn-secondary" onclick="closeModal('profileModal')">Close</button></div>
+  </div>
+</div>
+
+<script src="../assets/js/students.js"></script>
+</body>
+</html>

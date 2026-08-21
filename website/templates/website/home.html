@@ -1,0 +1,147 @@
+{% extends "base_public.html" %}
+{% block title %}{{ school.name }} — {{ school.tagline }}{% endblock %}
+
+{% block page_content %}
+<section class="hero">
+  <div class="container">
+    <div>
+      <div class="hero-badge"><i class="fa-solid fa-star"></i> {{ school.current_session }} Admission Now Open</div>
+      <div class="tagline">{{ school.tagline }}</div>
+      <h1>Welcome to <span>{{ school.name }}</span></h1>
+      <p class="slogan">{{ school.slogan }}. A nurturing, technology-driven school community in Suleja, Niger State — from Creche to Secondary School.</p>
+      <div class="hero-cta">
+        <a href="{% url 'admissions:apply' %}" class="btn btn-primary btn-lg">Apply Now <i class="fa-solid fa-arrow-right"></i></a>
+        <a href="{% url 'website:about' %}" class="btn btn-outline btn-lg">Explore Our School</a>
+      </div>
+      <div class="hero-stats">
+        {% for approval in school.approval_list %}<div><strong>{{ approval }}</strong><span>Approved</span></div>{% endfor %}
+        <div><strong>5</strong><span>Levels Offered</span></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="visual-card"><div class="visual-row"><div class="feature-icon" style="margin:0;"><i class="fa-solid fa-graduation-cap"></i></div><div><h4>Academic Excellence</h4><p>Structured curriculum from Creche to SSS3</p></div></div></div>
+      <div class="visual-card"><div class="visual-row"><div class="feature-icon" style="margin:0;"><i class="fa-solid fa-hands-praying"></i></div><div><h4>Moral Upbringing</h4><p>Discipline and character at the core</p></div></div></div>
+      <div class="visual-card"><div class="visual-row"><div class="feature-icon" style="margin:0;"><i class="fa-solid fa-laptop-code"></i></div><div><h4>ICT &amp; Digital Learning</h4><p>Computer lab &amp; digital-ready classrooms</p></div></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section-sm">
+  <div class="container">
+    <div class="section-title">
+      <span class="eyebrow">{{ welcome.eyebrow }}</span>
+      <h2>{{ welcome.heading }}</h2>
+      {% for p in welcome.paragraphs %}<p>{{ p }}</p>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--gray-50);">
+  <div class="container">
+    <div class="section-title"><span class="eyebrow">Why Choose Us</span><h2>Trust, Excellence &amp; Character</h2><p>Everything we do is built around five pillars that shape confident, disciplined and future-ready students.</p></div>
+    <div class="feature-grid">
+      {% for card in why_choose_us %}
+      <div class="feature-card"><div class="feature-icon"><i class="{{ card.icon }}"></i></div><h4>{{ card.title }}</h4><p>{{ card.description }}</p></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-title"><span class="eyebrow">Levels Offered</span><h2>A Learning Path From Creche to Secondary</h2><p>Every stage of your child's education, carefully structured under one roof.</p></div>
+    <div class="level-grid">
+      {% for card in levels %}
+      <div class="level-card"><div class="level-top"><i class="{{ card.icon }}"></i></div><div class="level-body"><h4>{{ card.title }}</h4><p>{{ card.description }}</p></div></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--gray-50);">
+  <div class="container">
+    <div class="section-title"><span class="eyebrow">Our Facilities</span><h2>A Safe, Modern Learning Environment</h2></div>
+    <div class="facility-grid">
+      {% for card in facility_highlights %}
+      <div class="facility-card"><div class="facility-img"><i class="{{ card.icon }}"></i></div><div class="body"><h4>{{ card.title }}</h4><p>{{ card.description }}</p></div></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="grid-2" style="align-items:center;">
+      <div>
+        <span class="eyebrow">{{ moral.eyebrow }}</span>
+        <h2>{{ moral.heading }}</h2>
+        {% for p in moral.paragraphs %}<p class="text-muted">{{ p }}</p>{% endfor %}
+      </div>
+      <div class="grid-2">
+        {% for card in character_cards %}
+        <div class="feature-card"><div class="feature-icon"><i class="{{ card.icon }}"></i></div><h4>{{ card.title }}</h4><p>{{ card.description }}</p></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--gray-50);">
+  <div class="container">
+    <div class="section-title"><span class="eyebrow">{{ parent_portal.eyebrow }}</span><h2>{{ parent_portal.heading }}</h2>{% for p in parent_portal.paragraphs %}<p>{{ p }}</p>{% endfor %}</div>
+    <div class="text-center"><a href="{% url 'accounts:login' %}" class="btn btn-navy btn-lg">Visit Parent Portal <i class="fa-solid fa-arrow-right"></i></a></div>
+  </div>
+</section>
+
+{% if announcements or events %}
+<section class="section">
+  <div class="container grid-2">
+    <div>
+      <div class="section-title left"><span class="eyebrow">Announcements</span><h2>Latest from the school</h2></div>
+      {% for a in announcements %}
+      <div class="card card-body mb-16">
+        <span class="badge badge-purple">{{ a.get_audience_display }}</span>
+        <h4 class="mt-8">{{ a.title }}</h4>
+        <p class="text-muted text-sm">{{ a.content }}</p>
+        <span class="text-muted text-sm">{{ a.created_at|date:"d M Y" }}</span>
+      </div>
+      {% empty %}<p class="text-muted">No announcements yet.</p>{% endfor %}
+    </div>
+    <div>
+      <div class="section-title left"><span class="eyebrow">Upcoming</span><h2>Events</h2></div>
+      {% for e in events %}
+      <div class="card card-body mb-16">
+        <span class="badge badge-gold">{{ e.get_category_display }}</span>
+        <h4 class="mt-8">{{ e.title }}</h4>
+        <p class="text-muted text-sm">{{ e.description }}</p>
+        <span class="text-muted text-sm">{{ e.date|date:"d M Y" }}</span>
+      </div>
+      {% empty %}<p class="text-muted">No upcoming events yet.</p>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section-sm">
+  <div class="container">
+    <div class="cta-band">
+      <div><h2>Admission is Now Open for {{ school.current_session }}</h2><p>Secure your child's place at {{ school.name }} today. Spaces are limited across all levels.</p></div>
+      <div class="flex gap-12 flex-wrap"><a href="{% url 'admissions:apply' %}" class="btn btn-primary btn-lg">Apply Now</a><a href="{% url 'admissions:track' %}" class="btn btn-outline btn-lg">Track Application</a></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--gray-50);">
+  <div class="container">
+    <div class="section-title"><span class="eyebrow">Get In Touch</span><h2>Visit or Contact Us</h2></div>
+    <div class="contact-grid">
+      <div>
+        <div class="contact-info-item"><div class="icon"><i class="fa-solid fa-location-dot"></i></div><div><h4>Our Address</h4><p>{{ school.address }}</p></div></div>
+        <div class="contact-info-item"><div class="icon"><i class="fa-solid fa-phone"></i></div><div><h4>Call Us</h4><p>{{ school.phone_numbers }}</p></div></div>
+        <div class="contact-info-item"><div class="icon"><i class="fa-solid fa-envelope"></i></div><div><h4>Email Us</h4><p>{{ school.email }}</p></div></div>
+      </div>
+      <div class="map-placeholder"><i class="fa-solid fa-map-location-dot" style="font-size:1.8rem;"></i><span>{{ school.address }}</span></div>
+    </div>
+  </div>
+</section>
+{% endblock %}

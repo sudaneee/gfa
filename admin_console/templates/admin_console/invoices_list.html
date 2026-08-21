@@ -1,0 +1,38 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Invoices — {{ school.name }}{% endblock %}
+{% block dash_title %}Invoices{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">{{ page_obj.paginator.count }} invoice{{ page_obj.paginator.count|pluralize }}. Invoices are generated from a locked fee structure and never hand-edited — view only, from here.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card"><div class="card-body">
+  <form method="get" class="filters-bar mb-16">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search invoice no., student, admission no.…" style="min-width:240px; padding:8px 12px; border:1px solid var(--gray-200); border-radius:var(--radius-sm); font-size:.85rem;">
+    <select name="status">
+      <option value="">All statuses</option>
+      {% for value, label in status_choices %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+    {% if q or status %}<a href="{% url 'admin_console:invoices_list' %}" class="btn btn-secondary btn-sm">Clear</a>{% endif %}
+  </form>
+
+  <div class="table-wrap"><table class="data-table">
+    <thead><tr><th>Invoice No.</th><th>Student</th><th>Term</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for inv in page_obj %}
+      <tr>
+        <td>{{ inv.invoice_number }}</td>
+        <td>{{ inv.student }}</td>
+        <td>{{ inv.term }}</td>
+        <td>₦{{ inv.total|floatformat:0 }}</td>
+        <td>₦{{ inv.amount_paid|floatformat:0 }}</td>
+        <td>₦{{ inv.balance|floatformat:0 }}</td>
+        <td><span class="badge badge-{% if inv.status == 'paid' %}success{% elif inv.status == 'partial' %}gold{% elif inv.status == 'waived' %}purple{% else %}danger{% endif %}">{{ inv.get_status_display }}</span></td>
+        <td class="text-right"><a class="btn btn-secondary btn-sm" href="{% url 'payments:fee_invoice' inv.student.pk inv.term.pk %}"><i class="fa-solid fa-eye"></i> View</a></td>
+      </tr>
+      {% empty %}<tr><td colspan="8" class="text-muted">No invoices match that search/filter.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+
+  {% include 'admin_console/_pagination.html' %}
+</div></div>
+{% endblock %}

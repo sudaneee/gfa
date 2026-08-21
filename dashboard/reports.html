@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reports — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/storage.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/dashboard-ui.js"></script>
+<script>const session = initDashLayout({ role: 'admin', title: 'Reports', subtitle: 'Student, academic, financial and attendance insights.' });</script>
+
+<template id="pageTemplate">
+  <div class="tabs mb-24">
+    <button class="tab-btn" data-tabkey="student">Student Reports</button>
+    <button class="tab-btn" data-tabkey="academic">Academic Reports</button>
+    <button class="tab-btn" data-tabkey="financial">Financial Reports</button>
+    <button class="tab-btn" data-tabkey="attendance">Attendance Reports</button>
+  </div>
+
+  <div data-tabpanel="student">
+    <div class="dash-grid-main">
+      <div class="card"><div class="card-header"><h3>Students by Class</h3></div><div class="card-body"><div class="bar-chart" id="byClassChart"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Students by Gender</h3></div><div class="card-body"><div class="donut-wrap" id="genderDonut"></div></div></div>
+    </div>
+    <div class="card"><div class="card-header"><h3>New Admissions (This Session)</h3></div><div class="card-body" id="newAdmissionsBody"></div></div>
+  </div>
+
+  <div data-tabpanel="academic" style="display:none;">
+    <div class="dash-grid-main">
+      <div class="card"><div class="card-header"><h3>Class Performance (Average Score)</h3></div><div class="card-body"><div class="bar-chart" id="classPerfChart"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Grade Distribution</h3></div><div class="card-body"><div class="legend-list" id="gradeLegend"></div></div></div>
+    </div>
+  </div>
+
+  <div data-tabpanel="financial" style="display:none;">
+    <div class="stats-grid" id="finStats"></div>
+    <div class="card"><div class="card-header"><h3>Fee Collection by Level</h3></div><div class="card-body"><div class="bar-chart" id="feeByLevelChart"></div></div></div>
+  </div>
+
+  <div data-tabpanel="attendance" style="display:none;">
+    <div class="stats-grid" id="attStats"></div>
+    <div class="card"><div class="card-header"><h3>Monthly Attendance Trend</h3></div><div class="card-body"><div class="bar-chart" id="attTrendChart"></div></div></div>
+  </div>
+</template>
+
+<script>
+document.getElementById('dashContent').innerHTML = document.getElementById('pageTemplate').innerHTML;
+const db = DB.load();
+const activeStudents = db.students.filter(s => s.status === 'Active');
+
+// Student reports
+const byClassCounts = db.classes.map(c => activeStudents.filter(s => s.class === c.name).length);
+const maxC = Math.max(...byClassCounts, 1);
+document.getElementById('byClassChart').innerHTML = db.classes.map((c,i) => `<div class="bar-col"><div class="bar" style="height:${Math.max(byClassCounts[i]/maxC*100,6)}%;"><span class="bar-val">${byClassCounts[i]}</span></div><span class="bar-label" style="font-size:.62rem;">${c.name}</span></div>`).join('');
+
+const male = activeStudents.filter(s=>s.gender==='Male').length, female = activeStudents.filter(s=>s.gender==='Female').length;
+const pMale = Math.round(male/activeStudents.length*100);
+document.getElementById('genderDonut').innerHTML = `
+  <div class="donut" style="background:conic-gradient(#1d3078 0 ${pMale}%, #e0a825 ${pMale}% 100%);"><div class="donut-center"><strong>${activeStudents.length}</strong><span>Students</span></div></div>
+  <div class="legend-list"><div class="legend-item"><span class="dot" style="background:#1d3078;"></span><span class="lbl">Male</span><span class="val">${male}</span></div><div class="legend-item"><span class="dot" style="background:#e0a825;"></span><span class="lbl">Female</span><span class="val">${female}</span></div></div>`;
+
+const newAdmissions = activeStudents.filter(s => s.admissionDate && s.admissionDate.startsWith('2026'));
+document.getElementById('newAdmissionsBody').innerHTML = `<div class="table-wrap"><table class="data-table"><thead><tr><th>Admission No.</th><th>Name</th><th>Class</th><th>Admission Date</th></tr></thead><tbody>
+  ${newAdmissions.slice(0,10).map(s=>`<tr><td>${s.admissionNo}</td><td>${fullName(s)}</td><td>${studentClassLabel(s)}</td><td>${formatDate(s.admissionDate)}</td></tr>`).join('') || '<tr><td colspan="4" class="text-muted">No new admissions recorded.</td></tr>'}
+</tbody></table></div>`;
+
+// Academic reports
+const classAverages = {};
+db.results.forEach(r => {
+  const s = db.students.find(s => s.id === r.studentId);
+  if (!s) return;
+  const key = s.class;
+  classAverages[key] = classAverages[key] || { sum: 0, count: 0 };
+  classAverages[key].sum += r.total; classAverages[key].count++;
+});
+const classKeys = Object.keys(classAverages);
+const classAvgVals = classKeys.map(k => Math.round(classAverages[k].sum / classAverages[k].count));
+document.getElementById('classPerfChart').innerHTML = classKeys.map((k,i) => `<div class="bar-col"><div class="bar" style="height:${classAvgVals[i]}%;"><span class="bar-val">${classAvgVals[i]}%</span></div><span class="bar-label" style="font-size:.62rem;">${k}</span></div>`).join('');
+
+const gradeCounts = {};
+db.results.forEach(r => gradeCounts[r.grade] = (gradeCounts[r.grade]||0)+1);
+const gradeColors = { A:'#1a9c62', B:'#2461c9', C:'#e0a825', D:'#c9821a', E:'#9aa1b8', F:'#d3413f' };
+document.getElementById('gradeLegend').innerHTML = Object.keys(gradeColors).map(g => `<div class="legend-item"><span class="dot" style="background:${gradeColors[g]};"></span><span class="lbl">Grade ${g}</span><span class="val">${gradeCounts[g]||0}</span></div>`).join('');
+
+// Financial reports
+const totalCollected = db.invoices.reduce((s,i)=>s+i.paid,0);
+const totalOutstanding = db.invoices.reduce((s,i)=>s+i.balance,0);
+document.getElementById('finStats').innerHTML = `
+  <div class="stat-card"><div class="icon icon-green"><i class="fa-solid fa-sack-dollar"></i></div><div class="value">${formatCurrency(totalCollected)}</div><div class="label">Total Collected</div></div>
+  <div class="stat-card"><div class="icon icon-navy"><i class="fa-solid fa-hand-holding-dollar"></i></div><div class="value">${formatCurrency(totalOutstanding)}</div><div class="label">Outstanding</div></div>
+  <div class="stat-card"><div class="icon icon-gold"><i class="fa-solid fa-receipt"></i></div><div class="value">${db.payments.length}</div><div class="label">Transactions</div></div>
+  <div class="stat-card"><div class="icon icon-purple"><i class="fa-solid fa-percent"></i></div><div class="value">${Math.round(totalCollected/(totalCollected+totalOutstanding)*100)}%</div><div class="label">Collection Rate</div></div>`;
+
+const feeByLevel = LEVELS.map(l => db.invoices.filter(i => { const s = db.students.find(s=>s.id===i.studentId); return s && s.level===l; }).reduce((sum,i)=>sum+i.paid,0));
+const maxFee = Math.max(...feeByLevel, 1);
+document.getElementById('feeByLevelChart').innerHTML = LEVELS.map((l,i) => `<div class="bar-col"><div class="bar" style="height:${Math.max(feeByLevel[i]/maxFee*100,4)}%;"><span class="bar-val">₦${Math.round(feeByLevel[i]/1000)}k</span></div><span class="bar-label">${l}</span></div>`).join('');
+
+// Attendance reports
+const totalAtt = db.attendance.length;
+const presentAtt = db.attendance.filter(a=>a.status==='Present').length;
+const absentAtt = db.attendance.filter(a=>a.status==='Absent').length;
+document.getElementById('attStats').innerHTML = `
+  <div class="stat-card"><div class="icon icon-green"><i class="fa-solid fa-check"></i></div><div class="value">${Math.round(presentAtt/totalAtt*100)}%</div><div class="label">Overall Present Rate</div></div>
+  <div class="stat-card"><div class="icon icon-navy"><i class="fa-solid fa-xmark"></i></div><div class="value">${Math.round(absentAtt/totalAtt*100)}%</div><div class="label">Overall Absent Rate</div></div>
+  <div class="stat-card"><div class="icon icon-gold"><i class="fa-solid fa-database"></i></div><div class="value">${totalAtt}</div><div class="label">Total Records</div></div>
+  <div class="stat-card"><div class="icon icon-purple"><i class="fa-solid fa-users"></i></div><div class="value">${activeStudents.length}</div><div class="label">Students Tracked</div></div>`;
+
+const byDate = {};
+db.attendance.forEach(a => { byDate[a.date] = byDate[a.date] || {present:0,total:0}; byDate[a.date].total++; if(a.status==='Present') byDate[a.date].present++; });
+const dates = Object.keys(byDate).sort();
+document.getElementById('attTrendChart').innerHTML = dates.map(d => { const rate = Math.round(byDate[d].present/byDate[d].total*100); return `<div class="bar-col"><div class="bar" style="height:${rate}%;"><span class="bar-val">${rate}%</span></div><span class="bar-label" style="font-size:.6rem;">${formatDate(d,{day:'2-digit',month:'2-digit'})}</span></div>`; }).join('');
+
+initHashTabs('student');
+</script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Online Application — Glittering Field Academy</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/website.css">
+</head>
+<body>
+<header class="navbar"><div class="container">
+  <a href="index.html" class="brand"><div class="brand-mark">GFA</div><div class="brand-text"><div class="name">Glittering Field Academy</div><div class="tagline">Academics and Morality</div></div></a>
+  <nav class="nav-links"><a href="index.html">Home</a><a href="admissions.html">Admissions</a><a href="application-tracking.html">Track Application</a></nav>
+  <div class="nav-actions"><a href="login.html" class="btn btn-secondary btn-sm">Parent Portal</a><button class="hamburger" aria-label="Menu"><span></span><span></span><span></span></button></div>
+</div></header>
+<div class="mobile-nav">
+  <div class="mobile-nav-header"><div class="brand"><div class="brand-mark">GFA</div><div class="brand-text"><div class="name">Glittering Field Academy</div></div></div><button class="mobile-nav-close btn btn-icon btn-ghost"><i class="fa-solid fa-xmark"></i></button></div>
+  <a href="index.html">Home</a><a href="admissions.html">Admissions</a><a href="application-tracking.html">Track Application</a><a href="login.html">Parent Portal</a>
+</div>
+
+<section class="page-header" style="padding:40px 0;">
+  <div class="container"><h1>Online Application</h1><p>2026/2027 Admission Session — Glittering Field Academy</p></div>
+</section>
+
+<section class="section-sm">
+  <div class="container" style="max-width:900px;">
+
+    <div class="app-steps-nav" id="stepsNav">
+      <div class="app-step-item active" data-step="1"><div class="circle">1</div><span>Applicant</span></div>
+      <div class="app-step-item" data-step="2"><div class="circle">2</div><span>Parent/Guardian</span></div>
+      <div class="app-step-item" data-step="3"><div class="circle">3</div><span>Academic</span></div>
+      <div class="app-step-item" data-step="4"><div class="circle">4</div><span>Documents</span></div>
+      <div class="app-step-item" data-step="5"><div class="circle">5</div><span>Review</span></div>
+      <div class="app-step-item" data-step="6"><div class="circle">6</div><span>Submit</span></div>
+    </div>
+
+    <div class="card card-body">
+      <form id="applicationForm" novalidate>
+
+        <!-- STEP 1: Applicant Information -->
+        <div class="form-step active" data-step="1">
+          <h3>Step 1 — Applicant Information</h3>
+          <p class="text-muted text-sm mb-24">Tell us about the child applying.</p>
+          <div class="form-row">
+            <div class="form-group"><label>First Name <span class="req">*</span></label><input type="text" name="firstName" required></div>
+            <div class="form-group"><label>Middle Name</label><input type="text" name="middleName"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Last Name <span class="req">*</span></label><input type="text" name="lastName" required></div>
+            <div class="form-group"><label>Date of Birth <span class="req">*</span></label><input type="date" name="dob" required></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Gender <span class="req">*</span></label>
+              <select name="gender" required><option value="">Select gender</option><option>Male</option><option>Female</option></select>
+            </div>
+            <div class="form-group"><label>Nationality <span class="req">*</span></label><input type="text" name="nationality" value="Nigerian" required></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>State of Origin <span class="req">*</span></label>
+              <select name="state" required><option value="">Select state</option></select>
+            </div>
+            <div class="form-group"><label>Local Government Area <span class="req">*</span></label><input type="text" name="lga" placeholder="e.g. Suleja" required></div>
+          </div>
+        </div>
+
+        <!-- STEP 2: Parent/Guardian Information -->
+        <div class="form-step" data-step="2">
+          <h3>Step 2 — Parent / Guardian Information</h3>
+          <p class="text-muted text-sm mb-24">Who is the primary contact for this applicant?</p>
+          <div class="form-row">
+            <div class="form-group"><label>Parent/Guardian Full Name <span class="req">*</span></label><input type="text" name="parentName" required></div>
+            <div class="form-group"><label>Relationship to Applicant <span class="req">*</span></label>
+              <select name="relationship" required><option value="">Select</option><option>Father</option><option>Mother</option><option>Guardian</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Phone Number <span class="req">*</span></label><input type="tel" name="phone" placeholder="080..." required></div>
+            <div class="form-group"><label>Email Address <span class="req">*</span></label><input type="email" name="email" required></div>
+          </div>
+          <div class="form-group"><label>Home Address <span class="req">*</span></label><textarea name="address" required></textarea></div>
+          <div class="form-group"><label>Occupation</label><input type="text" name="occupation"></div>
+        </div>
+
+        <!-- STEP 3: Academic Information -->
+        <div class="form-step" data-step="3">
+          <h3>Step 3 — Academic Information</h3>
+          <p class="text-muted text-sm mb-24">Tell us which level the applicant is applying for.</p>
+          <div class="form-group"><label>Applying For <span class="req">*</span></label>
+            <select name="applyingFor" id="applyingForSelect" required><option value="">Select level / class</option></select>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Previous School</label><input type="text" name="previousSchool" placeholder="Leave blank if first time in school"></div>
+            <div class="form-group"><label>Previous Class</label><input type="text" name="previousClass"></div>
+          </div>
+          <div class="form-group"><label>Previous Academic Performance</label>
+            <select name="previousPerformance"><option value="">Select (if applicable)</option><option>Excellent</option><option>Very Good</option><option>Good</option><option>Fair</option><option>First time in school</option></select>
+          </div>
+        </div>
+
+        <!-- STEP 4: Document Upload -->
+        <div class="form-step" data-step="4">
+          <h3>Step 4 — Document Upload</h3>
+          <p class="text-muted text-sm mb-24">Attach the required documents. Files are simulated for this demo — nothing is uploaded to a server.</p>
+          <div class="grid-2">
+            <div class="form-group">
+              <label>Passport Photograph <span class="req">*</span></label>
+              <label class="upload-box" for="file-passport"><i class="fa-solid fa-camera"></i><span>Click to select a file</span><div class="file-name" id="name-passport"></div></label>
+              <input type="file" id="file-passport" data-doc="passport" style="display:none;" required>
+            </div>
+            <div class="form-group">
+              <label>Birth Certificate <span class="req">*</span></label>
+              <label class="upload-box" for="file-birthCert"><i class="fa-solid fa-file-lines"></i><span>Click to select a file</span><div class="file-name" id="name-birthCert"></div></label>
+              <input type="file" id="file-birthCert" data-doc="birthCert" style="display:none;" required>
+            </div>
+            <div class="form-group">
+              <label>Previous Result (if applicable)</label>
+              <label class="upload-box" for="file-previousResult"><i class="fa-solid fa-file-invoice"></i><span>Click to select a file</span><div class="file-name" id="name-previousResult"></div></label>
+              <input type="file" id="file-previousResult" data-doc="previousResult" style="display:none;">
+            </div>
+            <div class="form-group">
+              <label>Other Supporting Document</label>
+              <label class="upload-box" for="file-other"><i class="fa-solid fa-paperclip"></i><span>Click to select a file</span><div class="file-name" id="name-other"></div></label>
+              <input type="file" id="file-other" data-doc="other" style="display:none;">
+            </div>
+          </div>
+          <div class="alert alert-info mt-16"><i class="fa-solid fa-circle-info"></i> This is a demonstration. Selected file names are stored for preview only; files are not uploaded anywhere.</div>
+        </div>
+
+        <!-- STEP 5: Review -->
+        <div class="form-step" data-step="5">
+          <h3>Step 5 — Review Your Application</h3>
+          <p class="text-muted text-sm mb-24">Please confirm all details are correct before submitting. You may go back to edit any section.</p>
+          <div id="reviewContainer"></div>
+        </div>
+
+        <!-- STEP 6: Success -->
+        <div class="form-step" data-step="6">
+          <div class="success-panel" id="successPanel"></div>
+        </div>
+
+        <div class="flex-between mt-32 no-print" id="formNavButtons">
+          <button type="button" class="btn btn-secondary" id="prevBtn" disabled>Back</button>
+          <button type="button" class="btn btn-primary" id="nextBtn">Continue <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer"><div class="container">
+  <div class="footer-bottom">&copy; 2026 Glittering Field Academy. All rights reserved. — Frontend demonstration prototype.</div>
+</div></footer>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/storage.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/admissions.js"></script>
+</body>
+</html>

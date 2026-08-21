@@ -1,0 +1,58 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Settings — {{ school.name }}{% endblock %}
+{% block dash_title %}Settings{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">School information, grading configuration and demo data controls.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="grid-2">
+  <div class="card"><div class="card-header"><h3>School Information</h3><a href="{% url 'portal:settings_edit' %}" class="btn btn-sm btn-secondary">Edit</a></div>
+    <div class="card-body">
+      <div class="review-grid">
+        <div class="item"><span class="k">School Name</span><span class="v">{{ school.name }}</span></div>
+        <div class="item"><span class="k">Tagline</span><span class="v">{{ school.tagline }}</span></div>
+        <div class="item"><span class="k">Slogan</span><span class="v">{{ school.slogan }}</span></div>
+        <div class="item"><span class="k">Address</span><span class="v">{{ school.address }}</span></div>
+        <div class="item"><span class="k">Current Session</span><span class="v">{{ school.current_session }}</span></div>
+        <div class="item"><span class="k">Approvals</span><span class="v">{{ school.approvals }}</span></div>
+        <div class="item"><span class="k">Application Fee</span><span class="v">₦{{ school.application_fee|floatformat:0 }}</span></div>
+        <div class="item"><span class="k">Bank Account</span><span class="v">{{ school.bank_name }} — {{ school.bank_account_number }}</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div class="card-header"><h3>Grade Boundaries</h3><a href="{% url 'admin_console:list' 'grade-boundaries' %}" class="btn btn-sm btn-secondary">Edit</a></div>
+    <div class="card-body">
+      <table class="data-table" style="min-width:0;"><thead><tr><th>Grade</th><th>Range</th><th>Point</th><th>Remark</th></tr></thead>
+      <tbody>
+        {% for g in grade_boundaries %}
+        <tr><td><span class="badge badge-{% if g.grade == 'F' %}danger{% elif g.grade == 'A' %}success{% else %}gray{% endif %}">{{ g.grade }}</span></td><td>{{ g.min_score }} – {{ g.max_score }}</td><td>{{ g.point }}</td><td>{{ g.remark }}</td></tr>
+        {% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-24"><div class="card-header"><h3>Demo Data Management</h3></div>
+  <div class="card-body">
+    <p class="text-muted">This prototype's records — students, staff, results, attendance, invoices, payments — can be wiped and regenerated from scratch at any time. User accounts and your school configuration above are left untouched.</p>
+    <div class="alert alert-warning"><i class="fa-solid fa-triangle-exclamation"></i> This action cannot be undone. All demo records will be replaced with a fresh generated dataset.</div>
+    <form method="post" action="{% url 'portal:reset_demo_data' %}" onsubmit="return confirm('Reset all demo data? This cannot be undone.');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger"><i class="fa-solid fa-arrows-rotate"></i> Reset Demo Data</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mt-24"><div class="card-header"><h3>Demo Login Accounts</h3></div>
+  <div class="card-body">
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>Role</th><th>Email</th><th>Password</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-purple">Administrator</span></td><td>admin@gfa.edu.ng</td><td>admin123</td></tr>
+        <tr><td><span class="badge badge-info">Teacher</span></td><td>teacher@gfa.edu.ng</td><td>teacher123</td></tr>
+        <tr><td><span class="badge badge-warning">Parent</span></td><td>parent@gfa.edu.ng</td><td>parent123</td></tr>
+        <tr><td><span class="badge badge-success">Student</span></td><td>student@gfa.edu.ng</td><td>student123</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+{% endblock %}

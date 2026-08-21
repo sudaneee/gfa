@@ -1,0 +1,70 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Enter Results — {{ school.name }}{% endblock %}
+{% block dash_title %}Enter Results{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">Score every active student in a class. Grades are calculated automatically from the configured grade boundaries.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card"><div class="card-body">
+  <div class="alert alert-info mb-16">
+    <i class="fa-solid fa-circle-info"></i>
+    <strong>How this page works:</strong> pick a Session, Term, Class and Subject below, then click
+    <strong>Load Students</strong> to bring up the score sheet for that exact combination. Enter each
+    student's scores and click <strong>Save Results</strong> — or download the Excel template, fill it
+    offline, and upload it back instead. Nothing loads until you choose a class and subject; already
+    have scores entered and just need to fix a mistake? Use <a href="{% url 'results:update' %}">Update Results</a> instead.
+  </div>
+
+  {% include 'results/_selector_bar.html' with show_subject=True load_label="Load Students" %}
+
+  {% if not sections %}
+  <div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><h4>No class assigned</h4><p class="text-muted text-sm">You don't have any classes assigned yet — contact an administrator.</p></div>
+  {% elif section and subject and term %}
+  <div class="alert alert-info mt-16"><i class="fa-solid fa-circle-info"></i> Grade boundaries:
+    {% for g in grade_boundaries %}{{ g.grade }} = {{ g.min_score }}–{{ g.max_score }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+    CA max {{ ca_max_total }}, Exam max 70.
+  </div>
+  <div class="flex gap-12 flex-wrap mb-16 no-print">
+    <a class="btn btn-secondary btn-sm" href="{% url 'results:download_template' %}?session_id={{ session.pk }}&term_id={{ term.pk }}&section_id={{ section.pk }}&subject_id={{ subject.pk }}&return_to=entry"><i class="fa-solid fa-file-excel"></i> Download Excel Template</a>
+    <form method="post" action="{% url 'results:upload' %}" enctype="multipart/form-data" class="flex gap-8" style="align-items:center;">
+      {% csrf_token %}
+      <input type="hidden" name="session_id" value="{{ session.pk }}">
+      <input type="hidden" name="term_id" value="{{ term.pk }}">
+      <input type="hidden" name="section_id" value="{{ section.pk }}">
+      <input type="hidden" name="subject_id" value="{{ subject.pk }}">
+      <input type="hidden" name="return_to" value="entry">
+      <input type="file" name="excel_file" accept=".xlsx" required style="max-width:220px;">
+      <button type="submit" class="btn btn-secondary btn-sm"><i class="fa-solid fa-file-arrow-up"></i> Upload Completed Excel</button>
+    </form>
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="session_id" value="{{ session.pk }}">
+    <input type="hidden" name="term_id" value="{{ term.pk }}">
+    <input type="hidden" name="section_id" value="{{ section.pk }}">
+    <input type="hidden" name="subject_id" value="{{ subject.pk }}">
+    {% include 'results/_score_grid.html' with existing_only=False %}
+    <div class="flex-between mt-16">
+      <span></span>
+      <button type="submit" class="btn btn-primary"{% if not term %} disabled{% endif %}><i class="fa-solid fa-floppy-disk"></i> Save Results</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="empty-state mt-16"><i class="fa-solid fa-pen-to-square"></i><h4>No students loaded yet</h4><p class="text-muted text-sm">Choose a class and subject above, then click "Load Students" to begin.</p></div>
+  {% endif %}
+</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Live total/grade preview only — the server remains authoritative on save.
+  document.querySelectorAll('[data-total-row]').forEach(row => {
+    const scoreInputs = row.querySelectorAll('[data-comp], [data-exam]');
+    function recalc() {
+      let total = 0;
+      scoreInputs.forEach(input => { total += Math.min(+input.value || 0, +input.dataset.max); });
+      row.querySelector('[data-total-cell]').innerHTML = `<strong>${total}</strong>`;
+    }
+    scoreInputs.forEach(input => input.addEventListener('input', recalc));
+  });
+</script>
+{% endblock %}
