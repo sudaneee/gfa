@@ -1,5 +1,5 @@
 {% extends "base_dashboard.html" %}
-{% block title %}My Portal — {{ school.name }}{% endblock %}
+{% block title %}Portal — {{ school.name }}{% endblock %}
 {% block dash_title %}Welcome, {{ user.get_full_name|default:user.username }}{% endblock %}
 {% block dash_subtitle %}<div class="sub text-sm text-muted">Signed in as {{ user.get_role_display }}</div>{% endblock %}
 

@@ -23,7 +23,7 @@
   </nav>
   <div class="nav-actions">
     {% if user.is_authenticated %}
-      <a href="{% url 'portal:home' %}" class="btn btn-secondary btn-sm">My Portal</a>
+      <a href="{% url 'portal:home' %}" class="btn btn-secondary btn-sm">Portal</a>
     {% else %}
       <a href="{% url 'accounts:login' %}" class="btn btn-secondary btn-sm">Parent Portal</a>
     {% endif %}
@@ -44,7 +44,7 @@
   <a href="{% url 'website:facilities' %}">Facilities</a>
   <a href="{% url 'website:news_events' %}">News &amp; Events</a>
   <a href="{% url 'website:contact' %}">Contact</a>
-  {% if user.is_authenticated %}<a href="{% url 'portal:home' %}">My Portal</a>{% else %}<a href="{% url 'accounts:login' %}">Parent Portal</a>{% endif %}
+  {% if user.is_authenticated %}<a href="{% url 'portal:home' %}">Portal</a>{% else %}<a href="{% url 'accounts:login' %}">Parent Portal</a>{% endif %}
   <a href="{% url 'admissions:track' %}">Track Application</a>
   <a href="{% url 'admissions:apply' %}" class="btn btn-primary btn-block">Apply Now</a>
 </div>
