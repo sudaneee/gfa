@@ -9,7 +9,7 @@
 
 <header class="navbar"><div class="container">
   <a href="{% url 'website:home' %}" class="brand">
-    <div class="brand-mark">GFA</div>
+    <div class="brand-mark">{% if school.logo %}<img src="{{ school.logo.url }}" alt="{{ school.name }}">{% else %}GFA{% endif %}</div>
     <div class="brand-text"><div class="name">{{ school.name }}</div><div class="tagline">{{ school.tagline }}</div></div>
   </a>
   <nav class="nav-links">
@@ -34,7 +34,7 @@
 
 <div class="mobile-nav">
   <div class="mobile-nav-header">
-    <div class="brand"><div class="brand-mark">GFA</div><div class="brand-text"><div class="name">{{ school.name }}</div></div></div>
+    <div class="brand"><div class="brand-mark">{% if school.logo %}<img src="{{ school.logo.url }}" alt="{{ school.name }}">{% else %}GFA{% endif %}</div><div class="brand-text"><div class="name">{{ school.name }}</div></div></div>
     <button class="mobile-nav-close btn btn-icon btn-ghost"><i class="fa-solid fa-xmark"></i></button>
   </div>
   <a href="{% url 'website:home' %}">Home</a>

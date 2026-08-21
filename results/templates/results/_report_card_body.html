@@ -11,7 +11,7 @@ today, components.
 <div class="report-card-doc">
   <div class="rc-header">
     {% if student.photo %}<img src="{{ student.photo.url }}" class="rc-photo" alt="">{% endif %}
-    <div class="brand-mark" style="margin:0 auto 10px;">GFA</div>
+    <div class="brand-mark" style="margin:0 auto 10px;">{% if school.logo %}<img src="{{ school.logo.url }}" alt="{{ school.name }}">{% else %}GFA{% endif %}</div>
     <h2>{{ school.name }}</h2>
     <p>{{ school.address }}</p>
   </div>

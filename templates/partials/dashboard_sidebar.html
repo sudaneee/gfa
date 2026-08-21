@@ -1,6 +1,6 @@
 {% load static %}
 <div class="sidebar-brand">
-  <div class="brand-mark">GFA</div>
+  <div class="brand-mark">{% if school.logo %}<img src="{{ school.logo.url }}" alt="{{ school.name }}">{% else %}GFA{% endif %}</div>
   <div>
     <div class="name">{{ school.name }}</div>
     <div class="role-tag">{{ user.get_role_display }} Console</div>

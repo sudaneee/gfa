@@ -13,7 +13,7 @@
 <div class="login-shell">
   <div class="login-card">
     <div class="brand" style="margin-bottom:24px;">
-      <div class="brand-mark">GFA</div>
+      <div class="brand-mark">{% if school.logo %}<img src="{{ school.logo.url }}" alt="{{ school.name }}">{% else %}GFA{% endif %}</div>
       <div class="brand-text"><div class="name">{{ school.name }}</div><div class="tagline">{{ school.tagline }}</div></div>
     </div>
     <h3>Sign In</h3>
