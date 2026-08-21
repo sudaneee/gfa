@@ -33,6 +33,20 @@ ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', '*').split(',') i
 # object (management commands, server-to-server webhooks, emails).
 SITE_URL = os.getenv('SITE_URL', 'http://127.0.0.1:8000').rstrip('/')
 
+# ── Production hardening (no-ops in dev, since DEBUG=True there) ──────────────
+# nginx terminates SSL and sits in front of gunicorn over a plain unix socket,
+# forwarding X-Forwarded-Proto (see /etc/nginx/proxy_params on the VPS) — this
+# tells Django to trust that header instead of redirect-looping on every
+# request (it would otherwise see the proxied request as plain HTTP and keep
+# "redirecting" to HTTPS forever).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_HSTS_SECONDS = 0 if DEBUG else 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+
 
 # Application definition
 
