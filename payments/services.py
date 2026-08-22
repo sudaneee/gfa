@@ -39,6 +39,14 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+# A flat transaction charge passed on to whoever's paying, added only to the
+# amount actually sent to ZainPay at checkout — never to what we display or
+# record anywhere in our own invoices/payments (those stay exactly what's
+# owed; Payment.amount is set from invoice.balance at creation time and is
+# never overwritten by ZainPay's post-charge figure, so this stays fully
+# invisible to our own records by construction, not by careful bookkeeping).
+ZAINPAY_TRANSACTION_CHARGE = Decimal('200')
+
 
 class ZainPayError(Exception):
     pass
@@ -68,7 +76,10 @@ def initiate_payment(invoice, callback_url: str, customer_email: str, mobile: st
     reference = f"GFA-{uuid.uuid4().hex[:12].upper()}"
     zainbox_code = getattr(settings, 'ZAINPAY_ZAINBOX_CODE', '')
 
-    raw_amount = invoice.balance
+    # The transaction charge is only ever added here, to what ZainPay actually
+    # bills the payer — invoice.balance (what we display and record) never
+    # includes it.
+    raw_amount = invoice.balance + ZAINPAY_TRANSACTION_CHARGE
     amount = str(int(raw_amount)) if raw_amount == int(raw_amount) else str(raw_amount)
 
     payload = {
@@ -78,7 +89,7 @@ def initiate_payment(invoice, callback_url: str, customer_email: str, mobile: st
         "emailAddress": customer_email,
         "zainboxCode": zainbox_code,
         "callBackUrl": callback_url,
-        "paymentChannels": ["card", "bank_transfer"],
+        "paymentChannels": ["bank_transfer"],
     }
 
     logger.info("ZainPay init — ref %s | amount %s | zainbox %s", reference, amount, zainbox_code)

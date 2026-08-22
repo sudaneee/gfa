@@ -95,6 +95,47 @@ def _make_application(**overrides):
     return Application.objects.create(**defaults)
 
 
+class InitiatePaymentChargeTests(TestCase):
+    """The 200-naira transaction charge and the bank_transfer-only channel
+    restriction must only ever reach ZainPay's payload — never our own
+    invoice/payment records, which stay exactly what's owed."""
+
+    def setUp(self):
+        self.application = _make_application()
+        self.invoice = ApplicationInvoice.objects.create(application=self.application, amount=Decimal('2000.00'))
+
+    @patch('payments.services.requests.post')
+    def test_payload_amount_includes_the_transaction_charge(self, mock_post):
+        mock_post.return_value = _mock_response(200, {'data': 'https://sandbox.zainpay.ng/pay/xyz'})
+
+        services.initiate_payment(self.invoice, callback_url='https://example.com/cb', customer_email='parent@example.com')
+
+        payload = mock_post.call_args.kwargs['json']
+        self.assertEqual(payload['amount'], '2200')  # 2000 balance + 200 charge
+
+    @patch('payments.services.requests.post')
+    def test_payload_restricts_payment_channel_to_bank_transfer(self, mock_post):
+        mock_post.return_value = _mock_response(200, {'data': 'https://sandbox.zainpay.ng/pay/xyz'})
+
+        services.initiate_payment(self.invoice, callback_url='https://example.com/cb', customer_email='parent@example.com')
+
+        payload = mock_post.call_args.kwargs['json']
+        self.assertEqual(payload['paymentChannels'], ['bank_transfer'])
+
+    @patch('payments.services.requests.post')
+    def test_the_charge_never_touches_the_invoice_or_payment_record(self, mock_post):
+        mock_post.return_value = _mock_response(200, {'data': 'https://sandbox.zainpay.ng/pay/xyz'})
+
+        services.initiate_payment(self.invoice, callback_url='https://example.com/cb', customer_email='parent@example.com')
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.balance, Decimal('2000.00'))  # unchanged — the charge was never added here
+        payment = ApplicationPayment.objects.create(
+            invoice=self.invoice, amount=self.invoice.balance, gateway='zainpay', status='pending', reference='GFA-CHARGETEST',
+        )
+        self.assertEqual(payment.amount, Decimal('2000.00'))
+
+
 class ProcessPaymentTests(TestCase):
     """payments.services.process_payment — the shared verify-and-persist logic."""
 
