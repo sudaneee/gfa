@@ -50,6 +50,17 @@
       </form>
     </div></div>
 
+    <div class="card mb-24"><div class="card-header"><h3>Enrollment</h3></div><div class="card-body">
+      {% if enrolled_student %}
+      <p class="text-muted text-sm mb-8">Already enrolled.</p>
+      <a href="{% url 'admin_console:edit' 'students' enrolled_student.pk %}" class="btn btn-secondary" style="width:100%;"><i class="fa-solid fa-user-graduate"></i> {{ enrolled_student }}</a>
+      {% elif application.status == 'admitted' %}
+      <a href="{% url 'admin_console:application_enroll' application.pk %}" class="btn btn-primary" style="width:100%;"><i class="fa-solid fa-user-graduate"></i> Enroll as Student</a>
+      {% else %}
+      <p class="text-muted text-sm mb-0">Mark this application "Admitted" to enroll {{ application.first_name }} as a student.</p>
+      {% endif %}
+    </div></div>
+
     <div class="card"><div class="card-header"><h3>Timeline</h3></div><div class="card-body">
       {% for log in status_logs %}
       <div class="flex gap-8 mb-12" style="align-items:flex-start;">

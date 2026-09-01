@@ -92,6 +92,92 @@ class ApplicationConsoleTests(TestCase):
         self.assertTrue(ApplicationStatusLog.objects.filter(application=self.application, stage='shortlisted').exists())
 
 
+class ApplicationEnrollTests(TestCase):
+    """The "Enroll as Student" action that closes the loop Student.application
+    was always meant for — creates the Student, links/reuses a Guardian, and
+    generates the term's invoice, all from one admitted Application."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin1', password='pw', role='admin')
+        self.client.force_login(self.admin)
+
+        session = AcademicSession.objects.create(name='2025/2026', is_current=True)
+        self.term = Term.objects.create(session=session, name='first', is_current=True)
+        fee_band = FeeBand.objects.create(name='Primary')
+        school_class = SchoolClass.objects.create(name='Primary 3', level='Primary', order=1, fee_band=fee_band)
+        self.section = Section.objects.create(school_class=school_class, name='A')
+        structure = FeeStructure.objects.create(session=session, fee_band=fee_band, student_category='new')
+        FeeStructureItem.objects.create(fee_structure=structure, category='Tuition', amount=50000)
+
+        self.application = Application.objects.create(
+            first_name='Test', last_name='Applicant', date_of_birth='2015-01-01', gender='Male',
+            state_of_origin='Niger', lga='Suleja', parent_name='Test Parent', relationship='Father',
+            phone='08011112222', email='parent@example.com', address='Test address',
+            applying_for='Primary 3', is_submitted=True, status='admitted',
+        )
+
+    def test_enroll_requires_admitted_status(self):
+        self.application.status = 'shortlisted'
+        self.application.save(update_fields=['status'])
+
+        response = self.client.post(reverse('admin_console:application_enroll', args=[self.application.pk]), {
+            'section': self.section.pk,
+        })
+        self.assertRedirects(response, reverse('admin_console:application_detail', args=[self.application.pk]))
+        self.assertFalse(Student.objects.exists())
+
+    def test_enroll_creates_student_guardian_login_and_invoice(self):
+        response = self.client.post(reverse('admin_console:application_enroll', args=[self.application.pk]), {
+            'section': self.section.pk, 'create_login': 'on',
+        })
+        student = Student.objects.get(application=self.application)
+        self.assertRedirects(response, reverse('admin_console:edit', args=['students', student.pk]))
+
+        self.assertEqual(student.first_name, 'Test')
+        self.assertEqual(student.section, self.section)
+        self.assertEqual(student.school_class, self.section.school_class)
+        self.assertIsNotNone(student.guardian)
+        self.assertEqual(student.guardian.name, 'Test Parent')
+        self.assertTrue(student.guardian.user_id)
+        self.assertEqual(student.guardian.user.role, 'parent')
+
+        self.assertTrue(Invoice.objects.filter(student=student, term=self.term).exists())
+
+    def test_enroll_without_login_checkbox_creates_no_user(self):
+        self.client.post(reverse('admin_console:application_enroll', args=[self.application.pk]), {
+            'section': self.section.pk,
+        })
+        student = Student.objects.get(application=self.application)
+        self.assertIsNotNone(student.guardian)
+        self.assertFalse(student.guardian.user_id)
+
+    def test_sibling_reuses_existing_guardian_instead_of_duplicating(self):
+        from students.models import Guardian
+
+        existing_guardian = Guardian.objects.create(
+            name='Test Parent', relationship='Father', phone='08011112222', email='parent@example.com',
+        )
+        self.client.post(reverse('admin_console:application_enroll', args=[self.application.pk]), {
+            'section': self.section.pk, 'create_login': 'on',
+        })
+
+        student = Student.objects.get(application=self.application)
+        self.assertEqual(student.guardian_id, existing_guardian.pk)
+        self.assertEqual(Guardian.objects.count(), 1)  # no duplicate created
+
+    def test_cannot_enroll_the_same_application_twice(self):
+        self.client.post(reverse('admin_console:application_enroll', args=[self.application.pk]), {
+            'section': self.section.pk,
+        })
+        first_student = Student.objects.get(application=self.application)
+
+        response = self.client.post(reverse('admin_console:application_enroll', args=[self.application.pk]), {
+            'section': self.section.pk,
+        })
+        self.assertRedirects(response, reverse('admin_console:edit', args=['students', first_student.pk]))
+        self.assertEqual(Student.objects.filter(application=self.application).count(), 1)
+
+
 class PaymentConsoleTests(TestCase):
     """Mark Received must produce the same result as the admin's own
     save_model — proven by checking both the payment stamp and the

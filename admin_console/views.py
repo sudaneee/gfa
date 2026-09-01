@@ -159,6 +159,127 @@ def application_detail(request, pk):
     return render(request, 'admin_console/application_detail.html', {
         'application': application, 'status_choices': Application.STATUS_CHOICES,
         'status_logs': application.status_logs.order_by('-created_at'),
+        'enrolled_student': getattr(application, 'student', None),
+        'active_nav': 'console', 'active_slug': 'applications',
+    })
+
+
+def _unique_username(seed: str) -> str:
+    """Slugify a name/email into a username, appending a number if taken —
+    same idea as makarfi's username generation, simplified."""
+    import re
+
+    from accounts.models import User
+
+    base = re.sub(r'[^a-z0-9]+', '.', seed.lower()).strip('.') or 'parent'
+    username = base
+    suffix = 1
+    while User.objects.filter(username=username).exists():
+        suffix += 1
+        username = f'{base}{suffix}'
+    return username
+
+
+@admin_required
+def application_enroll(request, pk):
+    """
+    Turns an admitted Application into a real, enrolled Student — the one
+    piece of the admissions flow that was previously entirely manual (see
+    students.models.Student.application's docstring: the field existed for
+    this from the start, nothing ever populated it). Reuses an existing
+    Guardian by phone/email when one already exists (siblings), and reuses
+    finance.services.generate_invoice rather than re-deriving fee logic.
+    """
+    from academics.models import Section, Term
+    from accounts.models import User
+    from admissions.models import Application
+    from communication.emails import send_email
+    from django.conf import settings as django_settings
+    from finance.services import InvoiceGenerationError, generate_invoice
+    from students.models import Guardian, Student
+
+    application = get_object_or_404(Application, pk=pk)
+
+    if application.status != 'admitted':
+        messages.error(request, 'Mark this application "Admitted" before enrolling the student.')
+        return redirect('admin_console:application_detail', pk=pk)
+
+    existing_student = getattr(application, 'student', None)
+    if existing_student:
+        messages.info(request, f'{application.full_name} is already enrolled as {existing_student}.')
+        return redirect('admin_console:edit', 'students', existing_student.pk)
+
+    sections = Section.objects.select_related('school_class').order_by('school_class__order', 'name')
+    suggested_section = sections.filter(school_class__name=application.applying_for).first()
+
+    if request.method == 'POST':
+        section = get_object_or_404(Section, pk=request.POST.get('section'))
+        create_login = request.POST.get('create_login') == 'on'
+
+        guardian = Guardian.objects.filter(
+            Q(email__iexact=application.email) | Q(phone=application.phone)
+        ).first()
+        if not guardian:
+            guardian = Guardian.objects.create(
+                name=application.parent_name, relationship=application.relationship,
+                phone=application.phone, email=application.email,
+                address=application.address, occupation=application.occupation,
+            )
+
+        credentials_note = ''
+        if create_login and not guardian.user_id:
+            import secrets
+
+            first, _, last = application.parent_name.partition(' ')
+            username = _unique_username(application.email or application.parent_name)
+            password = secrets.token_urlsafe(9)
+            user = User.objects.create_user(
+                username=username, email=application.email, first_name=first, last_name=last,
+                password=password, role='parent',
+            )
+            guardian.user = user
+            guardian.save(update_fields=['user'])
+
+            from website.models import SchoolSettings
+
+            login_url = f"{django_settings.SITE_URL}{reverse('accounts:login')}"
+            sent = send_email(
+                subject=f"Your Parent Portal login — {SchoolSettings.get_solo().name}",
+                message=(
+                    f"Dear {application.parent_name},\n\n"
+                    f"{application.first_name} has been enrolled. You can now sign in to the Parent Portal "
+                    f"to track results, attendance and fees.\n\n"
+                    f"Login: {login_url}\nUsername: {username}\nPassword: {password}\n\n"
+                    f"Please keep these details safe."
+                ),
+                to_email=application.email,
+            )
+            credentials_note = ' Parent login created and emailed.' if sent else \
+                f' Parent login created (username: {username}, password: {password}) — email could not be sent, share these manually.'
+
+        student = Student.objects.create(
+            first_name=application.first_name, last_name=application.last_name,
+            gender=application.gender, date_of_birth=application.date_of_birth,
+            school_class=section.school_class, section=section,
+            guardian=guardian, status='Active', application=application,
+        )
+
+        invoice_note = ''
+        term = Term.get_current()
+        if term:
+            try:
+                generate_invoice(student, term)
+                invoice_note = f' Invoice generated for {term}.'
+            except InvoiceGenerationError as exc:
+                invoice_note = f' Could not generate an invoice: {exc}'
+        else:
+            invoice_note = ' No current term is set, so no invoice was generated — do that from Fees once one is.'
+
+        messages.success(request, f'{student} enrolled successfully.{credentials_note}{invoice_note}')
+        return redirect('admin_console:edit', 'students', student.pk)
+
+    return render(request, 'admin_console/application_enroll.html', {
+        'application': application, 'sections': sections, 'suggested_section': suggested_section,
         'active_nav': 'console', 'active_slug': 'applications',
     })
 
