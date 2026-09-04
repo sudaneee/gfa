@@ -314,8 +314,9 @@ def invoices_list(request):
 
 
 # ── Payments — list + a "Mark Received" action for pending/manual ones,
-# reusing finance.services.mark_payment_success (also used by the admin's
-# own save_model, see finance/admin.py) so behaviour never drifts. ───────
+# reusing payments.services.mark_payment_success (also used by
+# finance.admin.PaymentAdmin/admissions.admin.ApplicationPaymentAdmin's own
+# save_model) so behaviour never drifts. ─────────────────────────────────
 
 @admin_required
 def payments_list(request):
@@ -352,11 +353,11 @@ def payment_mark_received(request):
     if request.method != 'POST':
         raise Http404
     from finance.models import Payment
-    from finance.services import mark_payment_success
+    from payments.services import mark_payment_success
 
     payment = get_object_or_404(Payment, pk=request.POST.get('pk'))
     mark_payment_success(payment, request.user)
-    messages.success(request, f'Payment {payment.reference} marked received — invoice status updated.')
+    messages.success(request, f'Payment {payment.reference} marked received — invoice status updated and confirmation emailed.')
 
     qs = request.POST.get('qs', '')
     return redirect(f"{reverse('admin_console:payments_list')}{'?' + qs if qs else ''}")

@@ -136,6 +136,50 @@ class InitiatePaymentChargeTests(TestCase):
         self.assertEqual(payment.amount, Decimal('2000.00'))
 
 
+class MarkPaymentSuccessTests(TestCase):
+    """The shared manual-payment path (Jaiz Bank transfer, no ZainPay
+    involved) — used by finance.admin.PaymentAdmin, admissions.admin
+    .ApplicationPaymentAdmin, and the Superadmin Console's "Mark Received"
+    action alike, so all three stay identical by construction."""
+
+    def setUp(self):
+        self.application = _make_application()
+        self.invoice = ApplicationInvoice.objects.create(application=self.application, amount=Decimal('2000.00'))
+        self.payment = ApplicationPayment.objects.create(
+            invoice=self.invoice, amount=Decimal('2000.00'), gateway='manual', status='pending',
+            reference='GFA-MANUALREF1',
+        )
+
+    def test_marks_success_stamps_fields_and_syncs_invoice(self):
+        services.mark_payment_success(self.payment)
+
+        self.payment.refresh_from_db()
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.payment.status, 'success')
+        self.assertIsNotNone(self.payment.paid_at)
+        self.assertTrue(self.payment.receipt_number)
+        self.assertEqual(self.invoice.status, 'paid')
+
+    def test_sends_the_same_confirmation_email_a_zainpay_payment_would(self):
+        from django.core import mail
+
+        services.mark_payment_success(self.payment)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(self.application.application_number, mail.outbox[0].subject)
+        self.assertEqual(mail.outbox[0].to, [self.application.email])
+
+    def test_already_successful_payment_does_not_resend_the_email(self):
+        from django.core import mail
+
+        self.payment.status = 'success'
+        self.payment.save()
+
+        services.mark_payment_success(self.payment)
+
+        self.assertEqual(len(mail.outbox), 0)
+
+
 class ProcessPaymentTests(TestCase):
     """payments.services.process_payment — the shared verify-and-persist logic."""
 

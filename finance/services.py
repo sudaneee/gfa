@@ -14,45 +14,6 @@ class InvoiceGenerationError(Exception):
     pass
 
 
-def stamp_payment_success_fields(payment, user=None):
-    """Fill in received_by/paid_at/receipt_number for a payment being saved
-    as successful — only touches fields that are still blank. Extracted
-    from finance.admin.PaymentAdmin.save_model so it's defined in exactly
-    one place; the admin's own save_model still calls this (unchanged
-    behaviour) and the Console's "Mark Received" action reuses it too."""
-    from django.utils import timezone
-
-    from payments.services import generate_receipt_number
-
-    if user and not payment.received_by_id:
-        payment.received_by = user
-    if not payment.paid_at:
-        payment.paid_at = timezone.now()
-    if not payment.receipt_number:
-        payment.receipt_number = generate_receipt_number()
-
-
-def sync_invoice_status(invoice):
-    """Recompute an Invoice's status from its payments — same rollup the
-    admin already runs after every Payment save, factored out so the
-    Console's actions produce the identical result."""
-    invoice.status = 'paid' if invoice.is_paid else ('partial' if invoice.amount_paid > 0 else 'unpaid')
-    invoice.save(update_fields=['status'])
-    return invoice
-
-
-def mark_payment_success(payment, user=None):
-    """Full 'mark this payment received' action for the Console — sets
-    status to success, stamps the success fields, saves, and syncs the
-    parent invoice. Manual (bank transfer) payments skip ZainPay
-    verification entirely, which is exactly what this covers."""
-    payment.status = 'success'
-    stamp_payment_success_fields(payment, user)
-    payment.save()
-    sync_invoice_status(payment.invoice)
-    return payment
-
-
 def student_category(student) -> str:
     """
     'new' the very first time a student is billed at all, 'continuing' on

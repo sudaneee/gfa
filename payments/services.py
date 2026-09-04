@@ -307,3 +307,48 @@ def _send_payment_confirmation_email(payment) -> None:
 
 def generate_receipt_number() -> str:
     return f"RCT-{uuid.uuid4().hex[:8].upper()}"
+
+
+# ── Manual (bank transfer) payments — works against ApplicationPayment or
+# finance.Payment interchangeably, same "any invoice-like object" duck-typing
+# as the rest of this module. A parent who pays into the school's bank
+# account directly (Jaiz Bank, shown alongside the ZainPay option) skips
+# ZainPay entirely — this is the one place that stamps that as received,
+# used by both the Django admin's own save_model (ApplicationPaymentAdmin,
+# finance.admin.PaymentAdmin) and the Superadmin Console's "Mark Received"
+# action, so all three can never quietly drift out of sync. ─────────────
+
+def stamp_payment_success_fields(payment, user=None):
+    """Fill in received_by/paid_at/receipt_number for a payment being saved
+    as successful — only touches fields that are still blank."""
+    from django.utils import timezone
+
+    if user and not payment.received_by_id:
+        payment.received_by = user
+    if not payment.paid_at:
+        payment.paid_at = timezone.now()
+    if not payment.receipt_number:
+        payment.receipt_number = generate_receipt_number()
+
+
+def sync_invoice_status(invoice):
+    """Recompute an invoice's status from its payments."""
+    invoice.status = 'paid' if invoice.is_paid else ('partial' if invoice.amount_paid > 0 else 'unpaid')
+    invoice.save(update_fields=['status'])
+    return invoice
+
+
+def mark_payment_success(payment, user=None, send_confirmation=True):
+    """Full 'mark this payment received' action — sets status to success,
+    stamps the success fields, saves, syncs the parent invoice, and (by
+    default) sends the exact same confirmation email a real ZainPay
+    payment triggers via process_payment, so a manually-recorded bank
+    transfer is indistinguishable to the payer from a gateway payment."""
+    already_success = payment.status == 'success'
+    payment.status = 'success'
+    stamp_payment_success_fields(payment, user)
+    payment.save()
+    sync_invoice_status(payment.invoice)
+    if send_confirmation and not already_success:
+        _send_payment_confirmation_email(payment)
+    return payment

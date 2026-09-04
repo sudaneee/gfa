@@ -67,9 +67,10 @@ class PaymentAdmin(admin.ModelAdmin):
         """Manual (bank transfer) payments skip Zainpay verification — mirror
         admissions.admin's same behaviour so the invoice status rolls forward.
         stamp_payment_success_fields/sync_invoice_status live in
-        finance/services.py so the Superadmin Console's "Mark Received"
-        action shares this exact logic instead of a second copy."""
-        from finance.services import stamp_payment_success_fields, sync_invoice_status
+        payments/services.py (shared with ApplicationPaymentAdmin and the
+        Superadmin Console's "Mark Received" action) so this exact logic
+        is defined in exactly one place."""
+        from payments.services import stamp_payment_success_fields, sync_invoice_status
 
         if obj.status == 'success':
             stamp_payment_success_fields(obj, request.user)

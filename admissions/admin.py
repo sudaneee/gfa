@@ -76,23 +76,14 @@ class ApplicationPaymentAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         """
         Manually-recorded payments (e.g. the Jaiz Bank transfer channel) skip
-        the ZainPay verify flow entirely, so mirror what
-        payments.services.process_payment does for gateway payments: stamp
-        paid_at/receipt_number and roll the invoice status forward when a
-        payment is saved as successful.
+        the ZainPay verify flow entirely. stamp_payment_success_fields/
+        sync_invoice_status live in payments/services.py (shared with
+        finance.admin.PaymentAdmin and the Superadmin Console) so this
+        exact logic is defined in exactly one place.
         """
-        from django.utils import timezone
-
-        from payments.services import generate_receipt_number
+        from payments.services import stamp_payment_success_fields, sync_invoice_status
 
         if obj.status == 'success':
-            if not obj.received_by_id:
-                obj.received_by = request.user
-            if not obj.paid_at:
-                obj.paid_at = timezone.now()
-            if not obj.receipt_number:
-                obj.receipt_number = generate_receipt_number()
+            stamp_payment_success_fields(obj, request.user)
         super().save_model(request, obj, form, change)
-        invoice = obj.invoice
-        invoice.status = 'paid' if invoice.is_paid else ('partial' if invoice.amount_paid > 0 else 'unpaid')
-        invoice.save(update_fields=['status'])
+        sync_invoice_status(obj.invoice)
