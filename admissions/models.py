@@ -86,6 +86,16 @@ class Application(models.Model):
     # that started it.
     resume_token = models.CharField(max_length=48, unique=True, default=generate_resume_token, editable=False)
 
+    # Who's logged-in account this application belongs to — NULL for
+    # applications started before login was required (see accounts app's
+    # applicant_signup): those keep working via resume_token exactly as
+    # before, no backfill/auto-claiming. Set on every new draft going
+    # forward, letting one parent account list/resume every child's
+    # application from their portal home instead of relying on email links.
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='applications',
+    )
+
     # Step 1 — Applicant information
     first_name = models.CharField(max_length=100)
     middle_name = models.CharField(max_length=100, blank=True)

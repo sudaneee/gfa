@@ -1,10 +1,12 @@
 from django.contrib import messages
+from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
 from admissions.forms import (
-    AcademicInfoForm, ApplicantInfoForm, ContactInfoForm, DocumentsForm, GuardianInfoForm, TrackApplicationForm,
+    AcademicInfoForm, ApplicantInfoForm, DocumentsForm, GuardianInfoForm, TrackApplicationForm,
 )
 from admissions.models import Application, ApplicationInvoice
 from website.models import SchoolSettings
@@ -20,17 +22,36 @@ def info(request):
 
 
 def _get_draft(request, create=True):
+    """
+    Finds the browser session's in-progress draft, or starts a new one.
+
+    Deliberately NOT a blanket login requirement: an *existing* session-
+    pointed draft (first branch below) is returned regardless of login
+    state, so applications already in progress before accounts existed
+    keep working untouched. Only *starting a brand-new* draft requires an
+    account — if the visitor isn't logged in, this returns None and the
+    caller (apply_payment) sends them to login instead of silently
+    creating another anonymous draft.
+    """
     draft_id = request.session.get(DRAFT_SESSION_KEY)
     if draft_id:
         draft = Application.objects.filter(pk=draft_id, is_submitted=False).first()
         if draft:
             return draft
-    if not create:
+    if not create or not request.user.is_authenticated:
         return None
+
+    guardian = getattr(request.user, 'guardian_profile', None)
     draft = Application.objects.create(
         first_name='', last_name='', date_of_birth=timezone.localdate(),
-        gender='Male', state_of_origin='', lga='', parent_name='', relationship='Father',
-        phone='', email='', address='', applying_for='Creche',
+        gender='Male', state_of_origin='', lga='',
+        parent_name=guardian.name if guardian else '',
+        relationship=guardian.relationship if guardian else 'Father',
+        phone=guardian.phone if guardian else '',
+        email=guardian.email if guardian and guardian.email else request.user.email,
+        address=guardian.address if guardian else '',
+        occupation=guardian.occupation if guardian else '',
+        applying_for='Creche', created_by=request.user,
     )
     request.session[DRAFT_SESSION_KEY] = draft.pk
     return draft
@@ -84,6 +105,14 @@ def apply_continue(request, application_number, resume_token):
         messages.info(request, 'This application has already been submitted.')
         return redirect('admissions:track')
 
+    # For applications created under login (created_by set), resume_token
+    # doubles as a magic-login: it's already a private, unguessable secret
+    # only ever delivered by email, so using it to also sign the visitor
+    # in isn't a new trust boundary — and it means a forgotten password
+    # never blocks resuming. Legacy (pre-login) drafts are untouched.
+    if draft.created_by_id and not request.user.is_authenticated:
+        login(request, draft.created_by, backend='django.contrib.auth.backends.ModelBackend')
+
     # Re-point this browser's session at the draft so the rest of the wizard
     # (which still uses the session for in-flight convenience) picks it up.
     request.session[DRAFT_SESSION_KEY] = draft.pk
@@ -97,31 +126,33 @@ def apply_payment(request):
     from SchoolSettings right here, same as it always was — just earlier in
     the flow now).
 
-    Before the Pay button ever shows, this collects email + phone (see
-    ContactInfoForm) — without them, ZainPay's initiate call would carry a
-    blank emailAddress (their docs mark it required) and any payment
-    confirmation we send would have nowhere to go, including the case where
-    the payment only resolves later via reconcile_zainpay or a webhook,
-    after the applicant has left the page.
+    A fresh draft requires being logged in (see _get_draft) — the account
+    already guarantees email/phone exist (from the Guardian profile), so
+    there's no separate "tell us where to reach you" step here anymore.
     """
     draft = _get_draft(request)
+    if not draft:
+        return redirect(f"{reverse('accounts:login')}?next={reverse('admissions:apply_payment')}")
+
     school = SchoolSettings.get_solo()
     invoice, _ = ApplicationInvoice.objects.get_or_create(
         application=draft, defaults={'amount': school.application_fee},
     )
 
-    contact_form = ContactInfoForm(instance=draft)
-    if request.method == 'POST' and 'set_contact' in request.POST:
-        contact_form = ContactInfoForm(request.POST, instance=draft)
-        if contact_form.is_valid():
-            contact_form.save()
-            return redirect('admissions:apply_payment')
-
     context = {
         'draft': draft, 'invoice': invoice, 'step': 'payment', 'step_nav': _step_nav('payment'),
-        'contact_form': contact_form, 'has_contact_info': bool(draft.email and draft.phone),
     }
     return render(request, 'admissions/apply.html', context)
+
+
+@login_required
+def apply_resume(request, pk):
+    """Dashboard "Continue" links — points the session's draft pointer at
+    one specific one of this account's applications (multiple in-progress
+    children can't all be "the" session draft at once)."""
+    draft = get_object_or_404(Application, pk=pk, created_by=request.user, is_submitted=False)
+    request.session[DRAFT_SESSION_KEY] = draft.pk
+    return redirect('admissions:apply_payment')
 
 
 def _wizard_step(request, step, form_class, template, next_step, draft, extra_ctx=None):
@@ -151,6 +182,11 @@ def apply_guardian(request):
     draft = _get_paid_draft(request)
     if not draft:
         return redirect('admissions:apply_payment')
+    # No separate pre-fill needed here — _get_draft already stamps the
+    # account's guardian_profile straight onto the draft's own
+    # parent_name/relationship/phone/email/address/occupation at creation,
+    # so GuardianInfoForm(instance=draft) already shows it, still fully
+    # editable and saved per-application.
     return _wizard_step(request, 'guardian', GuardianInfoForm, 'admissions/apply.html', 'academic', draft)
 
 

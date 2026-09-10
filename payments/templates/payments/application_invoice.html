@@ -24,10 +24,6 @@
           {% csrf_token %}
           <button type="submit" class="btn btn-primary btn-block btn-lg"><i class="fa-solid fa-credit-card"></i> Pay ₦{{ invoice.balance|floatformat:2 }} with ZainPay</button>
         </form>
-        <div class="alert alert-info mt-16">
-          <i class="fa-solid fa-building-columns"></i>
-          <div>Prefer bank transfer? Pay to <strong>{{ school.bank_name }}</strong>, account <strong>{{ school.bank_account_number }}</strong> ({{ school.bank_account_name }}) — include <strong>{{ application.full_name }}</strong> in the transfer narration, then contact the school office to confirm.</div>
-        </div>
         {% else %}
         <div class="alert alert-success mt-16"><i class="fa-solid fa-circle-check"></i> Application fee fully paid. Thank you!</div>
         {% endif %}

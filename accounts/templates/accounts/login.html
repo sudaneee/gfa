@@ -25,7 +25,8 @@
       <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
       <button type="submit" class="btn btn-primary btn-block btn-lg">Sign In <i class="fa-solid fa-arrow-right-to-bracket"></i></button>
     </form>
-    <p class="text-center text-sm mt-24"><a href="{% url 'website:home' %}" style="color:var(--navy-700);font-weight:600;"><i class="fa-solid fa-arrow-left"></i> Back to Website</a></p>
+    <p class="text-center text-sm mt-24">Applying for your child? <a href="{% url 'accounts:signup' %}?next={{ request.GET.next }}" style="color:var(--navy-700);font-weight:600;">Create an account</a></p>
+    <p class="text-center text-sm"><a href="{% url 'website:home' %}" style="color:var(--navy-700);font-weight:600;"><i class="fa-solid fa-arrow-left"></i> Back to Website</a></p>
   </div>
 </div>
 {% endblock %}

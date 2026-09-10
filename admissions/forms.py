@@ -3,24 +3,6 @@ from django import forms
 from admissions.models import Application
 
 
-class ContactInfoForm(forms.ModelForm):
-    """
-    Captured on the Payment step, before the Pay button ever appears — same
-    `email`/`phone` fields Application already has (reused, not duplicated),
-    so this pre-fills automatically when GuardianInfoForm asks for the same
-    two fields again later. Exists so ZainPay's initiate call gets a real
-    emailAddress (their docs mark it required) instead of a blank string,
-    and so payment-confirmation emails have somewhere to go — including for
-    a payment that only resolves later via reconcile_zainpay or a webhook,
-    when the applicant is no longer on the page to see it happen live.
-    """
-
-    class Meta:
-        model = Application
-        fields = ['email', 'phone']
-        labels = {'email': 'Email Address', 'phone': 'Phone Number'}
-
-
 class ApplicantInfoForm(forms.ModelForm):
     class Meta:
         model = Application

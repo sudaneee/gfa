@@ -93,7 +93,10 @@ def home(request):
     elif request.user.role == 'teacher':
         context['teacher'] = getattr(request.user, 'teacher_profile', None)
     elif request.user.role == 'parent':
+        from admissions.models import Application
+
         context['guardian'] = getattr(request.user, 'guardian_profile', None)
+        context['applications'] = Application.objects.filter(created_by=request.user).order_by('-created_at')
     elif request.user.role == 'student':
         context['student'] = getattr(request.user, 'student_profile', None)
     return render(request, 'portal/home.html', context)

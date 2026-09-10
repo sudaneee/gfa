@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from accounts.decorators import admin_required
-from accounts.forms import AdminCreateUserForm
+from accounts.forms import AdminCreateUserForm, ApplicantSignupForm
 
 
 def login_view(request):
@@ -36,6 +36,54 @@ def login_view(request):
         messages.error(request, 'Invalid email or password.')
 
     return render(request, 'accounts/login.html')
+
+
+def applicant_signup(request):
+    """
+    Create an account to apply — one login, many children. Reuses (links)
+    an existing user-less Guardian record when one already exists for this
+    phone/email (an admin-managed record from an already-enrolled sibling,
+    say) instead of duplicating it; rejects outright if that Guardian is
+    already linked to an account. New signups get role='parent' from the
+    start — an applicant account *is* a parent account, so there's never a
+    second login once a child is later admitted and enrolled.
+    """
+    from students.models import Guardian
+
+    if request.method == 'POST':
+        form = ApplicantSignupForm(request.POST)
+        if form.is_valid():
+            phone = form.cleaned_data['phone'].strip()
+            email = form.cleaned_data['email']
+            full_name = form.cleaned_data['full_name'].strip()
+
+            guardian = Guardian.objects.filter(Q(email__iexact=email) | Q(phone=phone)).first()
+            if guardian and guardian.user_id:
+                form.add_error(None, 'An account already exists for this email/phone — log in instead.')
+            else:
+                from accounts.models import User
+
+                user = User.objects.create_user(
+                    username=email, email=email, password=form.cleaned_data['password1'], role='parent',
+                )
+                first, _, last = full_name.partition(' ')
+                user.first_name, user.last_name = first, last
+                user.save(update_fields=['first_name', 'last_name'])
+
+                if guardian:
+                    guardian.name, guardian.phone, guardian.email, guardian.user = full_name, phone, email, user
+                    guardian.save(update_fields=['name', 'phone', 'email', 'user'])
+                else:
+                    Guardian.objects.create(name=full_name, phone=phone, email=email, user=user)
+
+                login(request, user)
+                messages.success(request, f'Welcome, {full_name}! You can now apply for your child.')
+                next_url = request.POST.get('next')
+                return redirect(next_url or 'portal:home')
+    else:
+        form = ApplicantSignupForm()
+
+    return render(request, 'accounts/signup.html', {'form': form})
 
 
 @login_required

@@ -37,18 +37,6 @@
         <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Payment received. You can now continue with the application form.</div>
         <div class="flex-between mt-16"><span></span><a href="{% url 'admissions:apply_applicant' %}" class="btn btn-primary">Continue to Application Form <i class="fa-solid fa-arrow-right"></i></a></div>
 
-        {% elif not has_contact_info %}
-        <p class="text-muted text-sm mb-16">Before you pay, tell us where to reach you — we'll email your payment receipt and any updates here.</p>
-        <form method="post" novalidate>
-          {% csrf_token %}
-          <input type="hidden" name="set_contact" value="1">
-          <div class="form-row">
-            <div class="form-group"><label>Email Address <span class="req">*</span></label>{{ contact_form.email }}{% for e in contact_form.email.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
-            <div class="form-group"><label>Phone Number <span class="req">*</span></label>{{ contact_form.phone }}{% for e in contact_form.phone.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}</div>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block btn-lg">Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
-        </form>
-
         {% else %}
         <div class="review-block"><h5>Sending Receipts To</h5><div class="review-grid">
           <div class="item"><span class="k">Email</span><span class="v">{{ draft.email }}</span></div>
@@ -58,10 +46,6 @@
           {% csrf_token %}
           <button type="submit" class="btn btn-primary btn-block btn-lg"><i class="fa-solid fa-credit-card"></i> Pay ₦{{ invoice.balance|floatformat:2 }} with ZainPay</button>
         </form>
-        <div class="alert alert-info mt-16">
-          <i class="fa-solid fa-building-columns"></i>
-          <div>Prefer bank transfer? Pay to <strong>{{ school.bank_name }}</strong>, account <strong>{{ school.bank_account_number }}</strong> ({{ school.bank_account_name }}) — include the applicant's name in the transfer narration, then contact the school office to confirm. Your application unlocks automatically once the school confirms your payment.</div>
-        </div>
 
         {% if invoice.payments.all %}
         <h4 class="mt-24">Payment Attempts</h4>

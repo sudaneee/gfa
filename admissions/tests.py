@@ -5,8 +5,20 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 
+from accounts.models import User
 from admissions.models import Application, ApplicationInvoice, ApplicationPayment, generate_application_number
+from students.models import Guardian
 from website.models import SchoolSettings
+
+
+def _make_parent(email='parent@example.com', phone='08000000000', name='Test Parent', with_guardian=True):
+    """A logged-in-ready parent account — with a linked Guardian by default,
+    since that's what a real signup produces and what _get_draft pre-fills
+    a fresh application from."""
+    user = User.objects.create_user(username=email, email=email, password='pw', role='parent')
+    if with_guardian:
+        Guardian.objects.create(name=name, phone=phone, email=email, user=user)
+    return user
 
 
 class ApplicationNumberTests(TestCase):
@@ -73,6 +85,7 @@ class PaymentGateTests(TestCase):
     """
 
     def _create_draft_via_payment_step(self):
+        self.client.force_login(_make_parent())
         self.client.get(reverse('admissions:apply_payment'))
         draft_id = self.client.session['draft_application_id']
         return Application.objects.get(pk=draft_id)
@@ -107,64 +120,55 @@ class PaymentGateTests(TestCase):
 
     def test_review_step_redirects_to_payment_without_a_draft_in_session(self):
         response = self.client.get(reverse('admissions:apply_review'))
-        self.assertRedirects(response, reverse('admissions:apply_payment'))
+        # Not following further here — where an anonymous, draft-less visit
+        # to apply_payment itself ends up (login) is AccountGatedApplicationTests' concern.
+        self.assertRedirects(response, reverse('admissions:apply_payment'), fetch_redirect_response=False)
 
 
-class ContactInfoBeforePaymentTests(TestCase):
+class AccountGatedApplicationTests(TestCase):
     """
-    Email/phone must be collected before the Pay button appears — otherwise
-    ZainPay's initiate call gets a blank (docs: required) emailAddress, and
-    a payment that only resolves later (webhook, reconcile_zainpay) has no
-    address to send the confirmation to.
+    Starting a *new* application requires an account — but an application
+    already in progress before this existed (created_by=NULL) must keep
+    working with no login required at all, exactly as before.
     """
 
-    def _create_draft(self):
-        self.client.get(reverse('admissions:apply_payment'))
-        draft_id = self.client.session['draft_application_id']
-        return Application.objects.get(pk=draft_id)
-
-    def test_payment_page_shows_contact_form_before_email_is_known(self):
-        self._create_draft()
+    def test_logged_out_visitor_is_sent_to_login_to_start_a_new_application(self):
         response = self.client.get(reverse('admissions:apply_payment'))
-        self.assertContains(response, 'Continue to Payment')
-        self.assertNotContains(response, 'with ZainPay')
+        self.assertRedirects(response, f"{reverse('accounts:login')}?next={reverse('admissions:apply_payment')}")
+        self.assertFalse(Application.objects.exists())  # nothing silently created
 
-    def test_submitting_contact_form_saves_it_and_unlocks_the_pay_button(self):
-        self._create_draft()
-        response = self.client.post(reverse('admissions:apply_payment'), {
-            'set_contact': '1', 'email': 'parent@example.com', 'phone': '08012345678',
-        }, follow=True)
-        self.assertContains(response, 'with ZainPay')
+    def test_logged_in_parent_gets_a_draft_prefilled_from_their_guardian_profile(self):
+        self.client.force_login(_make_parent(email='dad@example.com', phone='08011112222', name='Dad Person'))
+        self.client.get(reverse('admissions:apply_payment'))
 
-        draft = Application.objects.get(email='parent@example.com')
-        self.assertEqual(draft.phone, '08012345678')
+        draft_id = self.client.session['draft_application_id']
+        draft = Application.objects.get(pk=draft_id)
+        self.assertEqual(draft.email, 'dad@example.com')
+        self.assertEqual(draft.phone, '08011112222')
+        self.assertEqual(draft.parent_name, 'Dad Person')
+        self.assertIsNotNone(draft.created_by)
 
-    def test_incomplete_contact_form_is_rejected(self):
-        self._create_draft()
-        response = self.client.post(reverse('admissions:apply_payment'), {
-            'set_contact': '1', 'email': '', 'phone': '',
-        })
-        self.assertContains(response, 'Continue to Payment')  # re-rendered, not advanced
+    def test_existing_anonymous_session_draft_keeps_working_without_login(self):
+        """Simulates an application already in progress before this feature
+        existed — created_by is NULL, and the session already points at it."""
+        legacy_draft = Application.objects.create(
+            first_name='', last_name='', date_of_birth='2016-01-01', gender='Male',
+            state_of_origin='', lga='', parent_name='', relationship='Father',
+            phone='', email='', address='', applying_for='Creche',
+        )
+        session = self.client.session
+        session['draft_application_id'] = legacy_draft.pk
+        session.save()
 
-    @patch('payments.services.initiate_payment')
-    def test_initiate_payment_uses_the_captured_email(self, mock_initiate):
-        draft = self._create_draft()
-        draft.email = 'parent@example.com'
-        draft.phone = '08012345678'
-        draft.save()
-        mock_initiate.return_value = {'reference': 'X', 'gateway_reference': 'X', 'payment_url': 'https://example.com/pay'}
-
-        self.client.post(reverse('payments:initiate_application_payment', args=[draft.application_number]))
-
-        _, kwargs = mock_initiate.call_args
-        self.assertEqual(kwargs['customer_email'], 'parent@example.com')
-        self.assertEqual(kwargs['mobile'], '08012345678')
+        response = self.client.get(reverse('admissions:apply_payment'))
+        self.assertEqual(response.status_code, 200)  # not bounced to login
 
 
 class ApplicationWizardTests(TestCase):
     """End-to-end smoke test of the session-backed multi-step form, payment-gated."""
 
     def _pay_first(self):
+        self.client.force_login(_make_parent())
         self.client.get(reverse('admissions:apply_payment'))
         draft_id = self.client.session['draft_application_id']
         draft = Application.objects.get(pk=draft_id)
@@ -222,6 +226,7 @@ class ResumeApplicationTests(TestCase):
     """
 
     def _create_draft(self):
+        self.client.force_login(_make_parent())
         self.client.get(reverse('admissions:apply_payment'))
         draft_id = self.client.session['draft_application_id']
         return Application.objects.get(pk=draft_id)
@@ -234,6 +239,17 @@ class ResumeApplicationTests(TestCase):
         )
         self.assertRedirects(response, reverse('admissions:apply_payment'))
         self.assertEqual(int(fresh_client.session['draft_application_id']), draft.pk)
+
+    def test_resume_link_also_logs_the_fresh_client_in_as_the_owner(self):
+        """resume_token is already a private, email-only-delivered secret —
+        using it to sign the visitor in too means a forgotten password
+        never blocks resuming."""
+        draft = self._create_draft()
+        fresh_client = self.client_class()
+        fresh_client.get(reverse('admissions:apply_continue', args=[draft.application_number, draft.resume_token]))
+
+        response = fresh_client.get(reverse('portal:home'))
+        self.assertEqual(response.wsgi_request.user, draft.created_by)
 
     def test_wrong_token_is_rejected(self):
         draft = self._create_draft()
@@ -258,6 +274,22 @@ class ResumeApplicationTests(TestCase):
             reverse('admissions:apply_continue', args=[draft.application_number, draft.resume_token]),
         )
         self.assertRedirects(response, reverse('admissions:track'))
+
+    def test_legacy_anonymous_draft_resume_does_not_log_anyone_in(self):
+        """created_by=NULL (pre-login-requirement draft) — resume works
+        exactly as before, no magic-login side effect since there's no
+        account to log in as."""
+        legacy_draft = Application.objects.create(
+            first_name='', last_name='', date_of_birth='2016-01-01', gender='Male',
+            state_of_origin='', lga='', parent_name='', relationship='Father',
+            phone='', email='', address='', applying_for='Creche',
+        )
+        fresh_client = self.client_class()
+        response = fresh_client.get(
+            reverse('admissions:apply_continue', args=[legacy_draft.application_number, legacy_draft.resume_token]),
+        )
+        self.assertRedirects(response, reverse('admissions:apply_payment'))
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
 
     def test_payment_confirmation_email_contains_a_working_resume_link(self):
         from django.core import mail
@@ -290,6 +322,44 @@ class ResumeApplicationTests(TestCase):
         self.assertRedirects(response, reverse('admissions:apply_payment'))
 
 
+class ApplyResumeTests(TestCase):
+    """The parent dashboard's "Continue" links — picks one of possibly
+    several in-progress applications to point the session at."""
+
+    def test_requires_login(self):
+        draft = Application.objects.create(
+            first_name='', last_name='', date_of_birth='2016-01-01', gender='Male',
+            state_of_origin='', lga='', parent_name='', relationship='Father',
+            phone='', email='', address='', applying_for='Creche',
+        )
+        response = self.client.get(reverse('admissions:apply_resume', args=[draft.pk]))
+        self.assertRedirects(response, f"{reverse('accounts:login')}?next={reverse('admissions:apply_resume', args=[draft.pk])}")
+
+    def test_points_session_at_the_chosen_application(self):
+        parent = _make_parent()
+        draft = Application.objects.create(
+            first_name='', last_name='', date_of_birth='2016-01-01', gender='Male',
+            state_of_origin='', lga='', parent_name='', relationship='Father',
+            phone='', email='', address='', applying_for='Creche', created_by=parent,
+        )
+        self.client.force_login(parent)
+        response = self.client.get(reverse('admissions:apply_resume', args=[draft.pk]))
+        self.assertRedirects(response, reverse('admissions:apply_payment'))
+        self.assertEqual(int(self.client.session['draft_application_id']), draft.pk)
+
+    def test_cannot_resume_someone_elses_application(self):
+        owner = _make_parent(email='owner@example.com', phone='08011110000')
+        other = _make_parent(email='other@example.com', phone='08022220000')
+        draft = Application.objects.create(
+            first_name='', last_name='', date_of_birth='2016-01-01', gender='Male',
+            state_of_origin='', lga='', parent_name='', relationship='Father',
+            phone='', email='', address='', applying_for='Creche', created_by=owner,
+        )
+        self.client.force_login(other)
+        response = self.client.get(reverse('admissions:apply_resume', args=[draft.pk]))
+        self.assertEqual(response.status_code, 404)
+
+
 class WizardStepFormStructureTests(TestCase):
     """
     Real-browser HTML structure check, not just "does POSTing the right
@@ -311,6 +381,7 @@ class WizardStepFormStructureTests(TestCase):
     }
 
     def setUp(self):
+        self.client.force_login(_make_parent())
         self.client.get(reverse('admissions:apply_payment'))
         draft_id = self.client.session['draft_application_id']
         self.draft = Application.objects.get(pk=draft_id)
@@ -334,3 +405,14 @@ class WizardStepFormStructureTests(TestCase):
                         f'Field "{field_name}" on the {step} step is not inside any <form> element — '
                         f'a real browser would silently drop it on submit.',
                     )
+
+
+class NoManualBankTransferOptionTests(TestCase):
+    """The Jaiz Bank self-service option is gone from every payer-facing
+    payment page — ZainPay is the only way offered to pay, anywhere."""
+
+    def test_application_payment_step_does_not_offer_bank_transfer(self):
+        self.client.force_login(_make_parent())
+        self.client.get(reverse('admissions:apply_payment'))
+        response = self.client.get(reverse('admissions:apply_payment'))
+        self.assertNotContains(response, 'Prefer bank transfer')

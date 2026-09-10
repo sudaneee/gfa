@@ -119,6 +119,34 @@
   </div></div>
 
 {% elif user.role == 'parent' %}
+  <div class="flex-between mb-16">
+    <h3 class="mb-0">My Applications</h3>
+    <a href="{% url 'admissions:apply' %}" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> Apply for Another Child</a>
+  </div>
+  <div class="grid-2 mb-24">
+    {% for app in applications %}
+    <div class="card card-body">
+      <div class="flex-between" style="align-items:flex-start;">
+        <div><h4 class="mb-0">{{ app.full_name|default:"New Application" }}</h4><p class="text-muted text-sm mb-0">{{ app.applying_for }} &middot; {{ app.application_number }}</p></div>
+        {% if app.is_submitted %}
+        <span class="badge badge-{% if app.status == 'admitted' or app.status == 'approved' %}success{% elif app.status == 'rejected' %}danger{% else %}gold{% endif %}">{{ app.get_status_display }}</span>
+        {% else %}
+        <span class="badge badge-gray">{% if app.invoice.is_paid %}In Progress{% else %}Payment Pending{% endif %}</span>
+        {% endif %}
+      </div>
+      <div class="mt-16">
+        {% if not app.is_submitted %}
+        <a href="{% url 'admissions:apply_resume' app.pk %}" class="btn btn-primary btn-block"><i class="fa-solid fa-arrow-right"></i> Continue Application</a>
+        {% else %}
+        <a href="{% url 'admissions:track' %}?ref={{ app.application_number }}" class="btn btn-secondary btn-block"><i class="fa-solid fa-magnifying-glass"></i> View Status</a>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}<p class="text-muted">No applications yet — use "Apply for Another Child" above to start one.</p>{% endfor %}
+  </div>
+
+  {% if guardian.children.all %}
+  <h3 class="mb-16">My Children</h3>
   <div class="grid-2">
     {% for child in guardian.children.all %}
     <div class="card card-body">
@@ -133,8 +161,9 @@
       </div>
       {% endif %}
     </div>
-    {% empty %}<p class="text-muted">No children linked to your account yet — contact the school office.</p>{% endfor %}
+    {% endfor %}
   </div>
+  {% endif %}
 
 {% elif user.role == 'student' %}
   {% if student %}

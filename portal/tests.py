@@ -30,6 +30,41 @@ class ReportsAccessTests(TestCase):
         self.assertRedirects(self.client.post(reverse('portal:reset_demo_data')), reverse('portal:home'))
 
 
+class ParentDashboardApplicationsTests(TestCase):
+    """The unified parent dashboard lists every application this account
+    started, in progress or submitted — not just enrolled children."""
+
+    def setUp(self):
+        from admissions.models import Application
+
+        self.parent = User.objects.create_user(username='p2', password='pw', role='parent', email='p2@example.com')
+        self.other_parent = User.objects.create_user(username='p3', password='pw', role='parent', email='p3@example.com')
+
+        self.own_application = Application.objects.create(
+            first_name='Amina', last_name='Bello', date_of_birth='2018-01-01', gender='Female',
+            state_of_origin='Niger', lga='Suleja', parent_name='Test Parent', relationship='Father',
+            phone='08000000000', email='p2@example.com', address='addr', applying_for='Creche',
+            created_by=self.parent,
+        )
+        Application.objects.create(
+            first_name='Someone', last_name='Else', date_of_birth='2018-01-01', gender='Male',
+            state_of_origin='Niger', lga='Suleja', parent_name='Other Parent', relationship='Father',
+            phone='08011111111', email='p3@example.com', address='addr', applying_for='Creche',
+            created_by=self.other_parent,
+        )
+
+    def test_dashboard_lists_only_this_parents_applications(self):
+        self.client.force_login(self.parent)
+        response = self.client.get(reverse('portal:home'))
+        self.assertContains(response, 'Amina Bello')
+        self.assertNotContains(response, 'Someone Else')
+
+    def test_dashboard_has_an_apply_for_another_child_link(self):
+        self.client.force_login(self.parent)
+        response = self.client.get(reverse('portal:home'))
+        self.assertContains(response, reverse('admissions:apply'))
+
+
 class ResetDemoDataTests(TestCase):
     """The reset command must never touch user accounts or school configuration."""
 
