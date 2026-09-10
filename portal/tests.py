@@ -64,6 +64,23 @@ class ParentDashboardApplicationsTests(TestCase):
         response = self.client.get(reverse('portal:home'))
         self.assertContains(response, reverse('admissions:apply'))
 
+    def test_non_parent_account_still_sees_its_own_application(self):
+        """An application's created_by can be any account, e.g. staff
+        applying for their own child with their existing login — that
+        account must still see it, even though it isn't role='parent'."""
+        from admissions.models import Application
+
+        teacher = User.objects.create_user(username='t9', password='pw', role='teacher', email='t9@example.com')
+        Application.objects.create(
+            first_name='Staff', last_name='Kid', date_of_birth='2018-01-01', gender='Male',
+            state_of_origin='Niger', lga='Suleja', parent_name='Teacher Parent', relationship='Father',
+            phone='08000000001', email='t9@example.com', address='addr', applying_for='Creche',
+            created_by=teacher,
+        )
+        self.client.force_login(teacher)
+        response = self.client.get(reverse('portal:home'))
+        self.assertContains(response, 'Staff Kid')
+
 
 class ResetDemoDataTests(TestCase):
     """The reset command must never touch user accounts or school configuration."""

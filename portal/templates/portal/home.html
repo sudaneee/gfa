@@ -4,6 +4,33 @@
 {% block dash_subtitle %}<div class="sub text-sm text-muted">Signed in as {{ user.get_role_display }}</div>{% endblock %}
 
 {% block dash_content %}
+{% if applications and user.role != 'parent' %}
+{# A non-parent account (e.g. staff) that also has an application under it — parent role gets its own richer section below instead. #}
+<div class="card mb-24"><div class="card-header"><h3>My Applications</h3></div><div class="card-body">
+  <div class="grid-2">
+    {% for app in applications %}
+    <div class="card card-body">
+      <div class="flex-between" style="align-items:flex-start;">
+        <div><h4 class="mb-0">{{ app.full_name|default:"New Application" }}</h4><p class="text-muted text-sm mb-0">{{ app.applying_for }} &middot; {{ app.application_number }}</p></div>
+        {% if app.is_submitted %}
+        <span class="badge badge-{% if app.status == 'admitted' or app.status == 'approved' %}success{% elif app.status == 'rejected' %}danger{% else %}gold{% endif %}">{{ app.get_status_display }}</span>
+        {% else %}
+        <span class="badge badge-gray">{% if app.invoice.is_paid %}In Progress{% else %}Payment Pending{% endif %}</span>
+        {% endif %}
+      </div>
+      <div class="mt-16">
+        {% if not app.is_submitted %}
+        <a href="{% url 'admissions:apply_resume' app.pk %}" class="btn btn-primary btn-block"><i class="fa-solid fa-arrow-right"></i> Continue Application</a>
+        {% else %}
+        <a href="{% url 'admissions:track' %}?ref={{ app.application_number }}" class="btn btn-secondary btn-block"><i class="fa-solid fa-magnifying-glass"></i> View Status</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div></div>
+{% endif %}
+
 {% if user.role == 'admin' %}
   <div class="stats-grid mb-24">
     <div class="stat-card"><div class="top"><div class="icon icon-green"><i class="fa-solid fa-user-graduate"></i></div></div><div class="value">{{ total_students }}</div><div class="label">Active Students</div></div>

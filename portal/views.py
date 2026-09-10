@@ -87,16 +87,21 @@ def home(request):
     (stat cards, charts, recent activity, quick links across every module);
     the other three roles keep their existing focused quick-link views.
     """
+    from admissions.models import Application
+
     context = {'role': request.user.role, 'current_term': Term.get_current(), 'active_nav': 'home'}
+    # Not role-gated: an application's created_by is whichever account
+    # applied, regardless of that account's role — e.g. a staff member
+    # applying for their own child with their existing login. Every role
+    # sees their own applications, not just 'parent'.
+    context['applications'] = Application.objects.filter(created_by=request.user).order_by('-created_at')
+
     if request.user.role == 'admin':
         context.update(_admin_dashboard_context())
     elif request.user.role == 'teacher':
         context['teacher'] = getattr(request.user, 'teacher_profile', None)
     elif request.user.role == 'parent':
-        from admissions.models import Application
-
         context['guardian'] = getattr(request.user, 'guardian_profile', None)
-        context['applications'] = Application.objects.filter(created_by=request.user).order_by('-created_at')
     elif request.user.role == 'student':
         context['student'] = getattr(request.user, 'student_profile', None)
     return render(request, 'portal/home.html', context)
