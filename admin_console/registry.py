@@ -27,6 +27,7 @@ class ManagedModel:
     form_fields: list = field(default_factory=list)       # passed to modelform_factory
     can_delete: bool = True
     ordering: str | None = None
+    create_url_name: str | None = None  # overrides the generic "Add" button/route — a dedicated view handles creation instead (e.g. teachers, which also needs a login created in the same step)
 
 
 def _build_registry():
@@ -64,6 +65,7 @@ def _build_registry():
             filter_fields=[('status', 'Status'), ('department', 'Department')],
             form_fields=['first_name', 'last_name', 'gender', 'department', 'qualification',
                          'phone', 'email', 'employment_date', 'status', 'subjects', 'sections'],
+            create_url_name='admin_console:teacher_create',
         ),
         ManagedModel(
             slug='sessions', model=AcademicSession, label='Academic Sessions', singular='Session',

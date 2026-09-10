@@ -124,7 +124,10 @@ def check_application_payment_status(request, application_number, payment_pk):
 # ── Termly school fees ────────────────────────────────────────────────────────
 
 def _can_view_fee_invoice(user, student):
-    if user.role in ('admin', 'teacher'):
+    # Deliberately no 'teacher' branch — fees/payments are an admin,
+    # parent and student concern, not a teaching one, regardless of which
+    # section a teacher is assigned to.
+    if user.role == 'admin':
         return True
     if user.role == 'parent':
         return student.guardian_id and student.guardian.user_id == user.id
@@ -133,7 +136,7 @@ def _can_view_fee_invoice(user, student):
     return False
 
 
-@role_required('admin', 'teacher', 'parent', 'student')
+@role_required('admin', 'parent', 'student')
 def fee_invoice(request, student_id, term_id):
     student = get_object_or_404(Student, pk=student_id)
     term = get_object_or_404(Term, pk=term_id)
@@ -147,7 +150,7 @@ def fee_invoice(request, student_id, term_id):
     })
 
 
-@role_required('admin', 'teacher', 'parent', 'student')
+@role_required('admin', 'parent', 'student')
 @require_POST
 def initiate_fee_payment(request, student_id, term_id):
     student = get_object_or_404(Student, pk=student_id)
@@ -180,7 +183,7 @@ def initiate_fee_payment(request, student_id, term_id):
     return redirect(result['payment_url'])
 
 
-@role_required('admin', 'teacher', 'parent', 'student')
+@role_required('admin', 'parent', 'student')
 @require_POST
 def check_fee_payment_status(request, student_id, term_id, payment_pk):
     student = get_object_or_404(Student, pk=student_id)

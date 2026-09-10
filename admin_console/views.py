@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from accounts.decorators import admin_required
-from admin_console.forms import ManualPaymentRegistrationForm
+from admin_console.forms import ManualPaymentRegistrationForm, TeacherCreateForm
 from admin_console.registry import REGISTRY, categories
 from admin_console.utils import filter_lookup_value, filter_options, querystring_without_page, resolve_value
 
@@ -67,6 +67,8 @@ def generic_list(request, slug):
 @admin_required
 def generic_create(request, slug):
     entry = _entry_or_404(slug)
+    if entry.create_url_name:
+        return redirect(entry.create_url_name)
     Form = modelform_factory(entry.model, fields=entry.form_fields)
     if request.method == 'POST':
         form = Form(request.POST, request.FILES)
@@ -580,4 +582,47 @@ def manual_payment_registration(request):
 
     return render(request, 'admin_console/manual_payment.html', {
         'form': form, 'candidates': candidates, 'active_nav': 'console', 'active_slug': 'manual-payment',
+    })
+
+
+# ── Teacher creation — combines what the generic Teachers registry entry
+# can't (it has no field for Teacher.user at all): staff profile + login,
+# created together in one save instead of a separate later trip to Users
+# & Roles to create and link an account by hand. ──────────────────────────
+
+@admin_required
+def teacher_create(request):
+    if request.method == 'POST':
+        form = TeacherCreateForm(request.POST)
+        if form.is_valid():
+            teacher = form.save()
+            login_url = reverse('accounts:login')
+            if form.cleaned_data['send_login_email']:
+                from django.conf import settings as django_settings
+
+                from communication.emails import send_email
+                from website.models import SchoolSettings
+
+                sent = send_email(
+                    subject=f"Your {SchoolSettings.get_solo().name} Staff Login",
+                    message=(
+                        f"Dear {teacher.full_name},\n\n"
+                        f"A staff account has been created for you.\n\n"
+                        f"Login: {django_settings.SITE_URL}{login_url}\n"
+                        f"Username: {teacher.user.username}\n"
+                        f"Password: {form.cleaned_data['password']}\n\n"
+                        f"Please keep these details safe."
+                    ),
+                    to_email=teacher.email,
+                )
+                email_note = ' Login details emailed.' if sent else ' Could not send the email — share the credentials below yourself.'
+            else:
+                email_note = ''
+            messages.success(request, f'{teacher} created with username "{teacher.user.username}".{email_note}')
+            return redirect('admin_console:list', 'teachers')
+    else:
+        form = TeacherCreateForm()
+
+    return render(request, 'admin_console/teacher_create.html', {
+        'form': form, 'active_nav': 'console', 'active_slug': 'teachers',
     })

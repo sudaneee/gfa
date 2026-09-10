@@ -388,3 +388,81 @@ class ManualPaymentRegistrationTests(TestCase):
         response = self._post()
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'already taken')
+
+
+class TeacherCreateTests(TestCase):
+    """One save creates both the Teacher profile and their login — the
+    generic Teachers registry entry has no field for Teacher.user at all,
+    so this dedicated flow is the only way to create a teacher who can
+    actually log in, without a separate trip to Users & Roles."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin1', password='pw', role='admin')
+        self.client.force_login(self.admin)
+
+    def _post(self, **overrides):
+        data = {
+            'first_name': 'Grace', 'last_name': 'Adeyemi', 'gender': 'Female',
+            'department': 'Primary', 'qualification': 'B.Ed', 'phone': '08011112222',
+            'email': 'grace.adeyemi@example.com', 'employment_date': '2024-01-01', 'status': 'Active',
+            'username': 'gadeyemi', 'password': 'a-strong-password-1',
+            # A checkbox absent from POST data means unchecked, same as a browser —
+            # tests that want the "skipped" behaviour don't need to override this.
+            'send_login_email': 'on',
+        }
+        data.update(overrides)
+        return self.client.post(reverse('admin_console:teacher_create'), data)
+
+    def test_teachers_list_add_button_points_at_the_dedicated_page(self):
+        response = self.client.get(reverse('admin_console:list', args=['teachers']))
+        self.assertContains(response, reverse('admin_console:teacher_create'))
+
+    def test_generic_create_url_resolves_to_the_dedicated_page(self):
+        # 'teachers/add/' is registered explicitly ahead of the generic
+        # '<slug:slug>/add/' catch-all, so it's routed straight to
+        # teacher_create — entry.create_url_name's redirect inside
+        # generic_create is a fallback for slugs without that explicit
+        # override, and is unreachable for 'teachers' specifically.
+        response = self.client.get(reverse('admin_console:create', args=['teachers']))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Create Teacher &amp; Login')
+
+    def test_creates_teacher_with_working_login(self):
+        from staff.models import Teacher
+
+        response = self._post()
+        self.assertRedirects(response, reverse('admin_console:list', args=['teachers']))
+
+        teacher = Teacher.objects.get(first_name='Grace', last_name='Adeyemi')
+        self.assertIsNotNone(teacher.user)
+        self.assertEqual(teacher.user.role, 'teacher')
+        self.assertTrue(teacher.user.check_password('a-strong-password-1'))
+
+        self.client.logout()
+        self.assertTrue(self.client.login(username='gadeyemi', password='a-strong-password-1'))
+
+    def test_login_details_are_emailed_by_default(self):
+        from django.core import mail
+
+        self._post()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('grace.adeyemi@example.com', mail.outbox[0].to)
+        self.assertIn('gadeyemi', mail.outbox[0].body)
+
+    def test_send_login_email_can_be_skipped(self):
+        from django.core import mail
+
+        self._post(send_login_email='')
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_duplicate_username_is_rejected(self):
+        User.objects.create_user(username='gadeyemi', email='someone.else@example.com', password='pw', role='teacher')
+        response = self._post()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'already taken')
+
+    def test_duplicate_email_is_rejected(self):
+        User.objects.create_user(username='existing', email='grace.adeyemi@example.com', password='pw', role='teacher')
+        response = self._post()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'already exists')

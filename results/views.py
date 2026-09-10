@@ -147,11 +147,17 @@ def _report_card_context(student, term):
 
 
 def _can_view_report_card(user, student):
+    if user.role == 'admin':
+        return True
+    if user.role == 'teacher':
+        # Scoped to their own assigned sections — same rule attendance and
+        # results entry already use (sections_for_user), not a blanket pass.
+        return bool(student.section_id) and sections_for_user(user).filter(pk=student.section_id).exists()
     if user.role == 'parent':
         return bool(student.guardian and student.guardian.user_id == user.id)
     if user.role == 'student':
         return student.user_id == user.id
-    return True  # admin, teacher
+    return False
 
 
 @role_required('admin', 'teacher', 'parent', 'student')

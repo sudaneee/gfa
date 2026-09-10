@@ -100,6 +100,50 @@ class ReportCardAccessTests(TestCase):
         self.assertContains(response, 'Access denied')
 
 
+class TeacherReportCardAccessScopeTests(TestCase):
+    """A teacher must only be able to view report cards for students in
+    their own assigned sections — not a blanket pass, unlike admin."""
+
+    def setUp(self):
+        from staff.models import Teacher
+
+        seed_boundaries()
+        session = AcademicSession.objects.create(name='2025/2026', is_current=True)
+        self.term = Term.objects.create(session=session, name='first', is_current=True)
+        school_class = SchoolClass.objects.create(name='Primary 5', level='Primary', order=1)
+        self.own_section = Section.objects.create(school_class=school_class, name='A')
+        self.other_section = Section.objects.create(school_class=school_class, name='B')
+
+        self.teacher_user = User.objects.create_user(username='t1', password='pw', role='teacher')
+        teacher = Teacher.objects.create(
+            user=self.teacher_user, first_name='Grace', last_name='Adeyemi', gender='Female',
+        )
+        teacher.sections.add(self.own_section)
+
+        self.own_student = Student.objects.create(
+            first_name='In', last_name='Section', gender='Male', school_class=school_class, section=self.own_section,
+        )
+        self.other_student = Student.objects.create(
+            first_name='Not', last_name='InSection', gender='Male', school_class=school_class, section=self.other_section,
+        )
+
+    def test_teacher_can_view_report_card_for_their_own_section(self):
+        self.client.force_login(self.teacher_user)
+        response = self.client.get(reverse('results:report_card', args=[self.own_student.pk, self.term.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'In Section')
+
+    def test_teacher_cannot_view_report_card_for_a_section_not_theirs(self):
+        self.client.force_login(self.teacher_user)
+        response = self.client.get(reverse('results:report_card', args=[self.other_student.pk, self.term.pk]))
+        self.assertContains(response, 'Access denied')
+
+    def test_teacher_cannot_download_pdf_for_a_section_not_theirs(self):
+        self.client.force_login(self.teacher_user)
+        response = self.client.get(reverse('results:report_card_pdf', args=[self.other_student.pk, self.term.pk]))
+        self.assertRedirects(response, reverse('portal:home'))
+
+
 class ClassBroadsheetTests(TestCase):
     """
     Position ranking — adapted from giia's per-subject Result.calculate_position()

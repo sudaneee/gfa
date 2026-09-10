@@ -11,6 +11,7 @@ urlpatterns = [
     path('applications/<int:pk>/', views.application_detail, name='application_detail'),
     path('applications/<int:pk>/enroll/', views.application_enroll, name='application_enroll'),
     path('manual-payment/', views.manual_payment_registration, name='manual_payment_registration'),
+    path('teachers/add/', views.teacher_create, name='teacher_create'),
 
     path('invoices/', views.invoices_list, name='invoices_list'),
 

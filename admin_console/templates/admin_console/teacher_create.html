@@ -1,0 +1,35 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Add Teacher — {{ school.name }}{% endblock %}
+{% block dash_title %}Add Teacher{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted"><a href="{% url 'admin_console:list' 'teachers' %}">&larr; Back to Teachers</a></div>{% endblock %}
+
+{% block dash_content %}
+<div class="card" style="max-width:720px;"><div class="card-body">
+  <div class="alert alert-info mb-16"><i class="fa-solid fa-circle-info"></i> Creates the teacher's profile and their login together — one save, no separate trip to Users &amp; Roles.</div>
+  {% for error in form.non_field_errors %}<div class="alert alert-danger mb-16"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</div>{% endfor %}
+
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      {% if field.name == 'username' %}<h4 class="mt-24 mb-16">Login Details</h4>{% endif %}
+      {% if field.name == 'send_login_email' %}
+      <div class="form-group">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:600;">{{ field }} {{ field.label }}</label>
+        {% for e in field.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+      </div>
+      {% else %}
+      <div class="form-group">
+        <label>{{ field.label }}{% if field.field.required %} <span class="req">*</span>{% endif %}</label>
+        {{ field }}
+        {% for e in field.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+        {% if field.help_text %}<div class="form-hint">{{ field.help_text }}</div>{% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+    <div class="flex gap-12 mt-16">
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Create Teacher &amp; Login</button>
+      <a href="{% url 'admin_console:list' 'teachers' %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

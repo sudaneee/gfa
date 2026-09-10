@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 from django import forms
 
 from accounts.models import User
+from staff.models import Teacher
 
 
 class ManualPaymentRegistrationForm(forms.Form):
@@ -41,3 +42,61 @@ class ManualPaymentRegistrationForm(forms.Form):
         if amount <= 0:
             raise forms.ValidationError('Amount must be greater than zero.')
         return amount
+
+
+class TeacherCreateForm(forms.ModelForm):
+    """
+    One page, one save — creates the Teacher record AND their login
+    together, instead of creating a teacher then separately having to go
+    create+link a User account for them afterwards (the generic console
+    form has no field for Teacher.user at all, by design — this dedicated
+    form exists specifically to fill that gap).
+    """
+
+    username = forms.CharField(label='Username', max_length=150, help_text='What they will log in with.')
+    password = forms.CharField(label='Password', widget=forms.PasswordInput, min_length=8)
+    send_login_email = forms.BooleanField(label='Email them their login details', required=False, initial=True)
+
+    class Meta:
+        model = Teacher
+        fields = [
+            'first_name', 'last_name', 'gender', 'department', 'qualification',
+            'phone', 'email', 'employment_date', 'status', 'subjects', 'sections',
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Teacher profile first, login credentials last — don't rely on
+        # however ModelForm happens to merge declared vs. Meta fields.
+        self.order_fields([
+            'first_name', 'last_name', 'gender', 'department', 'qualification',
+            'phone', 'email', 'employment_date', 'status', 'subjects', 'sections',
+            'username', 'password', 'send_login_email',
+        ])
+
+    def clean_username(self):
+        username = self.cleaned_data['username'].strip()
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError('That username is already taken.')
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data['email'].strip()
+        if not email:
+            raise forms.ValidationError('An email is needed to send login details, and as their account email.')
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('An account already exists for this email.')
+        return email
+
+    def save(self, commit=True):
+        teacher = super().save(commit=False)
+        user = User.objects.create_user(
+            username=self.cleaned_data['username'], email=self.cleaned_data['email'],
+            password=self.cleaned_data['password'], role='teacher',
+            first_name=self.cleaned_data['first_name'], last_name=self.cleaned_data['last_name'],
+        )
+        teacher.user = user
+        if commit:
+            teacher.save()
+            self.save_m2m()
+        return teacher

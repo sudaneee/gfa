@@ -12,6 +12,62 @@ from admissions.models import Application, ApplicationInvoice, ApplicationPaymen
 from payments import services
 
 
+class FeeInvoiceAccessTests(TestCase):
+    """Termly fee invoices are an admin/parent/student concern — a teacher
+    has no legitimate reason to view or pay one, regardless of whether the
+    student is in their class (unlike report cards, which stay scoped)."""
+
+    def setUp(self):
+        from academics.models import AcademicSession, SchoolClass, Section, Term
+        from accounts.models import User
+        from finance.models import Invoice
+        from staff.models import Teacher
+        from students.models import Guardian, Student
+
+        session = AcademicSession.objects.create(name='2025/2026', is_current=True)
+        self.term = Term.objects.create(session=session, name='first', is_current=True)
+        school_class = SchoolClass.objects.create(name='Primary 5', level='Primary', order=1)
+        section = Section.objects.create(school_class=school_class, name='A')
+
+        self.parent_user = User.objects.create_user(username='p1', password='pw', role='parent')
+        guardian = Guardian.objects.create(name='Parent', phone='080', user=self.parent_user)
+        self.student_user = User.objects.create_user(username='s1', password='pw', role='student')
+        self.student = Student.objects.create(
+            first_name='Fee', last_name='Test', gender='Male', school_class=school_class,
+            section=section, guardian=guardian, user=self.student_user,
+        )
+        Invoice.objects.create(student=self.student, term=self.term)
+
+        self.admin = User.objects.create_user(username='a1', password='pw', role='admin')
+        self.teacher_user = User.objects.create_user(username='t1', password='pw', role='teacher')
+        Teacher.objects.create(user=self.teacher_user, first_name='T', last_name='One', gender='Male').sections.add(section)
+
+    def _url(self):
+        return reverse('payments:fee_invoice', args=[self.student.pk, self.term.pk])
+
+    def test_admin_can_view(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(self._url()).status_code, 200)
+
+    def test_owning_parent_can_view(self):
+        self.client.force_login(self.parent_user)
+        self.assertEqual(self.client.get(self._url()).status_code, 200)
+
+    def test_the_student_can_view_their_own(self):
+        self.client.force_login(self.student_user)
+        self.assertEqual(self.client.get(self._url()).status_code, 200)
+
+    def test_teacher_cannot_view_even_for_a_student_in_their_own_section(self):
+        self.client.force_login(self.teacher_user)
+        response = self.client.get(self._url())
+        self.assertRedirects(response, reverse('portal:home'))
+
+    def test_teacher_cannot_initiate_payment(self):
+        self.client.force_login(self.teacher_user)
+        response = self.client.post(reverse('payments:initiate_fee_payment', args=[self.student.pk, self.term.pk]))
+        self.assertRedirects(response, reverse('portal:home'))
+
+
 def _mock_response(status_code, body):
     resp = Mock()
     resp.status_code = status_code
