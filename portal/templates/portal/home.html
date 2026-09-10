@@ -4,30 +4,16 @@
 {% block dash_subtitle %}<div class="sub text-sm text-muted">Signed in as {{ user.get_role_display }}</div>{% endblock %}
 
 {% block dash_content %}
-{% if applications and user.role != 'parent' %}
-{# A non-parent account (e.g. staff) that also has an application under it — parent role gets its own richer section below instead. #}
-<div class="card mb-24"><div class="card-header"><h3>My Applications</h3></div><div class="card-body">
-  <div class="grid-2">
-    {% for app in applications %}
-    <div class="card card-body">
-      <div class="flex-between" style="align-items:flex-start;">
-        <div><h4 class="mb-0">{{ app.full_name|default:"New Application" }}</h4><p class="text-muted text-sm mb-0">{{ app.applying_for }} &middot; {{ app.application_number }}</p></div>
-        {% if app.is_submitted %}
-        <span class="badge badge-{% if app.status == 'admitted' or app.status == 'approved' %}success{% elif app.status == 'rejected' %}danger{% else %}gold{% endif %}">{{ app.get_status_display }}</span>
-        {% else %}
-        <span class="badge badge-gray">{% if app.invoice.is_paid %}In Progress{% else %}Payment Pending{% endif %}</span>
-        {% endif %}
-      </div>
-      <div class="mt-16">
-        {% if not app.is_submitted %}
-        <a href="{% url 'admissions:apply_resume' app.pk %}" class="btn btn-primary btn-block"><i class="fa-solid fa-arrow-right"></i> Continue Application</a>
-        {% else %}
-        <a href="{% url 'admissions:track' %}?ref={{ app.application_number }}" class="btn btn-secondary btn-block"><i class="fa-solid fa-magnifying-glass"></i> View Status</a>
-        {% endif %}
-      </div>
-    </div>
-    {% endfor %}
+{% if applications %}
+{# Full application management lives on its own separate Applications
+Dashboard (admissions:dashboard) — this is deliberately just a pointer
+over there, not a duplicate of it, whichever role this account has. #}
+<div class="card mb-24"><div class="card-body flex-between flex-wrap" style="align-items:center;gap:12px;">
+  <div>
+    <h4 class="mb-4"><i class="fa-solid fa-file-signature"></i> Admission Applications</h4>
+    <p class="text-muted text-sm mb-0">{{ applications.count }} application{{ applications.count|pluralize }} linked to this account — tracked separately from the school portal.</p>
   </div>
+  <a href="{% url 'admissions:dashboard' %}" class="btn btn-primary"><i class="fa-solid fa-arrow-right"></i> Go to Applications Dashboard</a>
 </div></div>
 {% endif %}
 
@@ -146,32 +132,6 @@
   </div></div>
 
 {% elif user.role == 'parent' %}
-  <div class="flex-between mb-16">
-    <h3 class="mb-0">My Applications</h3>
-    <a href="{% url 'admissions:apply' %}" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> Apply for Another Child</a>
-  </div>
-  <div class="grid-2 mb-24">
-    {% for app in applications %}
-    <div class="card card-body">
-      <div class="flex-between" style="align-items:flex-start;">
-        <div><h4 class="mb-0">{{ app.full_name|default:"New Application" }}</h4><p class="text-muted text-sm mb-0">{{ app.applying_for }} &middot; {{ app.application_number }}</p></div>
-        {% if app.is_submitted %}
-        <span class="badge badge-{% if app.status == 'admitted' or app.status == 'approved' %}success{% elif app.status == 'rejected' %}danger{% else %}gold{% endif %}">{{ app.get_status_display }}</span>
-        {% else %}
-        <span class="badge badge-gray">{% if app.invoice.is_paid %}In Progress{% else %}Payment Pending{% endif %}</span>
-        {% endif %}
-      </div>
-      <div class="mt-16">
-        {% if not app.is_submitted %}
-        <a href="{% url 'admissions:apply_resume' app.pk %}" class="btn btn-primary btn-block"><i class="fa-solid fa-arrow-right"></i> Continue Application</a>
-        {% else %}
-        <a href="{% url 'admissions:track' %}?ref={{ app.application_number }}" class="btn btn-secondary btn-block"><i class="fa-solid fa-magnifying-glass"></i> View Status</a>
-        {% endif %}
-      </div>
-    </div>
-    {% empty %}<p class="text-muted">No applications yet — use "Apply for Another Child" above to start one.</p>{% endfor %}
-  </div>
-
   {% if guardian.children.all %}
   <h3 class="mb-16">My Children</h3>
   <div class="grid-2">

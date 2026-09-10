@@ -134,7 +134,7 @@ class AccountGatedApplicationTests(TestCase):
 
     def test_logged_out_visitor_is_sent_to_login_to_start_a_new_application(self):
         response = self.client.get(reverse('admissions:apply_payment'))
-        self.assertRedirects(response, f"{reverse('accounts:login')}?next={reverse('admissions:apply_payment')}")
+        self.assertRedirects(response, f"{reverse('admissions:login')}?next={reverse('admissions:apply_payment')}")
         self.assertFalse(Application.objects.exists())  # nothing silently created
 
     def test_logged_in_parent_gets_a_draft_prefilled_from_their_guardian_profile(self):
@@ -162,6 +162,100 @@ class AccountGatedApplicationTests(TestCase):
 
         response = self.client.get(reverse('admissions:apply_payment'))
         self.assertEqual(response.status_code, 200)  # not bounced to login
+
+    def test_losing_the_session_pointer_resumes_the_existing_draft_instead_of_duplicating(self):
+        """The bug this guards against: an applicant logs in again (a new
+        device, a cleared cookie jar, or just a fresh browser session) with
+        no session pointer — that used to silently mint another blank,
+        unpaid Application every single time instead of finding the one
+        they already started."""
+        parent = _make_parent()
+        self.client.force_login(parent)
+        self.client.get(reverse('admissions:apply_payment'))
+        self.assertEqual(Application.objects.filter(created_by=parent).count(), 1)
+        first_draft_id = self.client.session['draft_application_id']
+
+        # A fresh client — same account, no session pointer at all — logging
+        # in again from what's effectively a different device/session.
+        fresh_client = self.client_class()
+        fresh_client.force_login(parent)
+        fresh_client.get(reverse('admissions:apply_payment'))
+
+        self.assertEqual(Application.objects.filter(created_by=parent).count(), 1)  # still just one
+        self.assertEqual(int(fresh_client.session['draft_application_id']), first_draft_id)
+
+    def test_apply_new_is_the_one_deliberate_way_to_get_a_second_draft(self):
+        parent = _make_parent()
+        self.client.force_login(parent)
+        self.client.get(reverse('admissions:apply_payment'))  # first, implicit draft
+        self.assertEqual(Application.objects.filter(created_by=parent).count(), 1)
+
+        response = self.client.get(reverse('admissions:apply_new'))
+        self.assertRedirects(response, reverse('admissions:apply_payment'))
+        self.assertEqual(Application.objects.filter(created_by=parent).count(), 2)
+
+    def test_apply_new_requires_login(self):
+        response = self.client.get(reverse('admissions:apply_new'))
+        self.assertRedirects(response, f"{reverse('admissions:login')}?next={reverse('admissions:apply_new')}")
+
+
+class ApplicantLoginAndDashboardTests(TestCase):
+    """The applicant-facing login + dashboard — deliberately separate from
+    the School Portal's accounts:login / portal:home."""
+
+    def test_login_page_is_not_the_school_portal_login(self):
+        response = self.client.get(reverse('admissions:login'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'admissions/login.html')
+        self.assertTemplateNotUsed(response, 'accounts/login.html')
+
+    def test_successful_login_lands_on_the_applications_dashboard_not_the_portal(self):
+        _make_parent(email='applicant@example.com')
+        response = self.client.post(reverse('admissions:login'), {'email': 'applicant@example.com', 'password': 'pw'})
+        self.assertRedirects(response, reverse('admissions:dashboard'))
+
+    def test_login_by_email_or_username_both_work(self):
+        user = User.objects.create_user(username='someweirdusername', email='e@example.com', password='pw', role='parent')
+        response = self.client.post(reverse('admissions:login'), {'email': 'e@example.com', 'password': 'pw'})
+        self.assertRedirects(response, reverse('admissions:dashboard'))
+        self.client.logout()
+        response = self.client.post(reverse('admissions:login'), {'email': 'someweirdusername', 'password': 'pw'})
+        self.assertRedirects(response, reverse('admissions:dashboard'))
+
+    def test_wrong_password_is_rejected(self):
+        _make_parent(email='applicant@example.com')
+        response = self.client.post(reverse('admissions:login'), {'email': 'applicant@example.com', 'password': 'wrong'})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Invalid email or password')
+
+    def test_dashboard_requires_login(self):
+        response = self.client.get(reverse('admissions:dashboard'))
+        self.assertRedirects(response, f"{reverse('admissions:login')}?next={reverse('admissions:dashboard')}")
+
+    def test_dashboard_lists_only_this_accounts_applications(self):
+        mine = _make_parent(email='mine@example.com', phone='08011110000')
+        other = _make_parent(email='other@example.com', phone='08022220000')
+        Application.objects.create(
+            first_name='A', last_name='Mine', date_of_birth='2016-01-01', gender='Male',
+            state_of_origin='', lga='', parent_name='', relationship='Father',
+            phone='', email='', address='', applying_for='Creche', created_by=mine,
+        )
+        Application.objects.create(
+            first_name='B', last_name='Other', date_of_birth='2016-01-01', gender='Male',
+            state_of_origin='', lga='', parent_name='', relationship='Father',
+            phone='', email='', address='', applying_for='Creche', created_by=other,
+        )
+        self.client.force_login(mine)
+        response = self.client.get(reverse('admissions:dashboard'))
+        self.assertContains(response, 'A Mine')
+        self.assertNotContains(response, 'B Other')
+
+    def test_signup_redirects_to_the_dashboard_not_the_portal(self):
+        response = self.client.post(reverse('accounts:signup'), {
+            'full_name': 'New Applicant', 'email': 'newapplicant@example.com', 'phone': '08099998888',
+            'password1': 'a-strong-password-1', 'password2': 'a-strong-password-1',
+        })
+        self.assertRedirects(response, reverse('admissions:dashboard'))
 
 
 class ApplicationWizardTests(TestCase):
@@ -333,7 +427,7 @@ class ApplyResumeTests(TestCase):
             phone='', email='', address='', applying_for='Creche',
         )
         response = self.client.get(reverse('admissions:apply_resume', args=[draft.pk]))
-        self.assertRedirects(response, f"{reverse('accounts:login')}?next={reverse('admissions:apply_resume', args=[draft.pk])}")
+        self.assertRedirects(response, f"{reverse('admissions:login')}?next={reverse('admissions:apply_resume', args=[draft.pk])}")
 
     def test_points_session_at_the_chosen_application(self):
         parent = _make_parent()

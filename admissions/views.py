@@ -21,26 +21,7 @@ def info(request):
     return render(request, 'admissions/info.html')
 
 
-def _get_draft(request, create=True):
-    """
-    Finds the browser session's in-progress draft, or starts a new one.
-
-    Deliberately NOT a blanket login requirement: an *existing* session-
-    pointed draft (first branch below) is returned regardless of login
-    state, so applications already in progress before accounts existed
-    keep working untouched. Only *starting a brand-new* draft requires an
-    account — if the visitor isn't logged in, this returns None and the
-    caller (apply_payment) sends them to login instead of silently
-    creating another anonymous draft.
-    """
-    draft_id = request.session.get(DRAFT_SESSION_KEY)
-    if draft_id:
-        draft = Application.objects.filter(pk=draft_id, is_submitted=False).first()
-        if draft:
-            return draft
-    if not create or not request.user.is_authenticated:
-        return None
-
+def _create_draft_for(request):
     guardian = getattr(request.user, 'guardian_profile', None)
     draft = Application.objects.create(
         first_name='', last_name='', date_of_birth=timezone.localdate(),
@@ -55,6 +36,60 @@ def _get_draft(request, create=True):
     )
     request.session[DRAFT_SESSION_KEY] = draft.pk
     return draft
+
+
+def _get_draft(request, create=True):
+    """
+    Finds the browser session's in-progress draft, or starts a new one.
+
+    Deliberately NOT a blanket login requirement: an *existing* session-
+    pointed draft (first branch below) is returned regardless of login
+    state, so applications already in progress before accounts existed
+    keep working untouched. Only *starting a brand-new* draft requires an
+    account — if the visitor isn't logged in, this returns None and the
+    caller (apply_payment) sends them to login instead of silently
+    creating another anonymous draft.
+
+    Losing the session pointer (a new device, a cleared cookie jar, or
+    simply logging in fresh) used to fall straight through to "create a
+    new draft" below — which meant every such visit minted another blank,
+    unpaid Application for an already-logged-in applicant who just wanted
+    to get back to the one they'd already started. So before creating
+    anything, check for an unsubmitted draft this account already owns and
+    re-point the session at that instead — the same self-healing job the
+    (never-taken) session pointer was meant to do. Starting a genuinely
+    *second* application (another child) is now only ever the explicit
+    action in apply_new, never an implicit side effect of just showing up
+    here.
+    """
+    draft_id = request.session.get(DRAFT_SESSION_KEY)
+    if draft_id:
+        draft = Application.objects.filter(pk=draft_id, is_submitted=False).first()
+        if draft:
+            return draft
+    if not create or not request.user.is_authenticated:
+        return None
+
+    existing = Application.objects.filter(created_by=request.user, is_submitted=False).order_by('-created_at')
+    if existing:
+        draft = existing.first()
+        request.session[DRAFT_SESSION_KEY] = draft.pk
+        return draft
+
+    return _create_draft_for(request)
+
+
+@login_required(login_url='admissions:login')
+def apply_new(request):
+    """
+    The one deliberate way to start a genuinely new application while
+    already having one (or more) in progress — "Apply for Another Child"
+    on the dashboard. Everywhere else, landing here without a session
+    pointer resumes whatever's already in progress instead (see
+    _get_draft) rather than silently spawning a duplicate.
+    """
+    _create_draft_for(request)
+    return redirect('admissions:apply_payment')
 
 
 def _get_paid_draft(request):
@@ -132,7 +167,7 @@ def apply_payment(request):
     """
     draft = _get_draft(request)
     if not draft:
-        return redirect(f"{reverse('accounts:login')}?next={reverse('admissions:apply_payment')}")
+        return redirect(f"{reverse('admissions:login')}?next={reverse('admissions:apply_payment')}")
 
     school = SchoolSettings.get_solo()
     invoice, _ = ApplicationInvoice.objects.get_or_create(
@@ -145,7 +180,7 @@ def apply_payment(request):
     return render(request, 'admissions/apply.html', context)
 
 
-@login_required
+@login_required(login_url='admissions:login')
 def apply_resume(request, pk):
     """Dashboard "Continue" links — points the session's draft pointer at
     one specific one of this account's applications (multiple in-progress
@@ -153,6 +188,49 @@ def apply_resume(request, pk):
     draft = get_object_or_404(Application, pk=pk, created_by=request.user, is_submitted=False)
     request.session[DRAFT_SESSION_KEY] = draft.pk
     return redirect('admissions:apply_payment')
+
+
+def applicant_login(request):
+    """
+    A separate front door from the School Portal login — same underlying
+    accounts (an applicant IS a parent account, see applicant_signup), but
+    its own page and its own destination (the Applications Dashboard
+    below), not the staff/parent portal. Someone here only wants to get to
+    their application(s); they shouldn't have to recognise, or wade
+    through, unrelated portal furniture to do that.
+    """
+    from accounts.views import _authenticate_by_identifier
+
+    if request.user.is_authenticated:
+        return redirect('admissions:dashboard')
+
+    if request.method == 'POST':
+        identifier = request.POST.get('email', '').strip()
+        password = request.POST.get('password', '')
+        user = _authenticate_by_identifier(request, identifier, password)
+
+        if user is not None:
+            login(request, user)
+            messages.success(request, f'Welcome, {user.get_full_name() or user.username}!')
+            next_url = request.GET.get('next') or request.POST.get('next')
+            return redirect(next_url or 'admissions:dashboard')
+
+        messages.error(request, 'Invalid email or password.')
+
+    return render(request, 'admissions/login.html')
+
+
+@login_required(login_url='admissions:login')
+def dashboard(request):
+    """
+    The Applications Dashboard — an applicant's own landing page, separate
+    from the School Portal (portal:home) a staff member or an already-
+    enrolled child's parent sees. Every application this account has ever
+    started or submitted, in one place, plus the one deliberate way to
+    start another (apply_new).
+    """
+    applications = Application.objects.filter(created_by=request.user).order_by('-created_at')
+    return render(request, 'admissions/dashboard.html', {'applications': applications})
 
 
 def _wizard_step(request, step, form_class, template, next_step, draft, extra_ctx=None):

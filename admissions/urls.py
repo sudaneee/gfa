@@ -6,7 +6,10 @@ app_name = 'admissions'
 
 urlpatterns = [
     path('', views.info, name='info'),
+    path('login/', views.applicant_login, name='login'),
+    path('dashboard/', views.dashboard, name='dashboard'),
     path('apply/', views.apply_start, name='apply'),
+    path('apply/new/', views.apply_new, name='apply_new'),
     path('apply/payment/', views.apply_payment, name='apply_payment'),
     path('apply/continue/<str:application_number>/<str:resume_token>/', views.apply_continue, name='apply_continue'),
     path('apply/resume/<int:pk>/', views.apply_resume, name='apply_resume'),

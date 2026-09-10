@@ -570,11 +570,11 @@ def manual_payment_registration(request):
                     )
                     mark_payment_success(payment, user=request.user)
 
-                    login_url = f"{django_settings.SITE_URL}{reverse('accounts:login')}"
+                    login_url = f"{django_settings.SITE_URL}{reverse('admissions:login')}"
                     messages.success(
                         request,
                         f'Account created and payment activated. Give {full_name} their login — '
-                        f'{login_url}, username "{user.username}" — so they can continue the application.',
+                        f'{login_url}, email "{user.email}" — so they can continue the application.',
                     )
                     return redirect('admin_console:applications_list')
     else:

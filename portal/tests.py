@@ -31,8 +31,9 @@ class ReportsAccessTests(TestCase):
 
 
 class ParentDashboardApplicationsTests(TestCase):
-    """The unified parent dashboard lists every application this account
-    started, in progress or submitted — not just enrolled children."""
+    """The School Portal dashboard doesn't manage applications itself —
+    that's the separate Applications Dashboard's job (admissions:dashboard)
+    — it only ever shows a pointer over there when this account has any."""
 
     def setUp(self):
         from admissions.models import Application
@@ -53,21 +54,28 @@ class ParentDashboardApplicationsTests(TestCase):
             created_by=self.other_parent,
         )
 
-    def test_dashboard_lists_only_this_parents_applications(self):
+    def test_dashboard_points_to_the_separate_applications_dashboard_without_leaking_detail(self):
         self.client.force_login(self.parent)
         response = self.client.get(reverse('portal:home'))
-        self.assertContains(response, 'Amina Bello')
+        self.assertContains(response, reverse('admissions:dashboard'))
+        # Per-application detail lives only on that separate dashboard now —
+        # not even this account's own application's name shows up here.
+        self.assertNotContains(response, 'Amina Bello')
         self.assertNotContains(response, 'Someone Else')
 
-    def test_dashboard_has_an_apply_for_another_child_link(self):
-        self.client.force_login(self.parent)
-        response = self.client.get(reverse('portal:home'))
-        self.assertContains(response, reverse('admissions:apply'))
+    def test_no_applications_means_no_banner_at_all(self):
+        from admissions.models import Application
 
-    def test_non_parent_account_still_sees_its_own_application(self):
+        self.client.force_login(self.other_parent)
+        Application.objects.filter(created_by=self.other_parent).delete()
+        response = self.client.get(reverse('portal:home'))
+        self.assertNotContains(response, reverse('admissions:dashboard'))
+
+    def test_non_parent_account_still_sees_the_applications_banner(self):
         """An application's created_by can be any account, e.g. staff
         applying for their own child with their existing login — that
-        account must still see it, even though it isn't role='parent'."""
+        account must still get the pointer, even though it isn't
+        role='parent'."""
         from admissions.models import Application
 
         teacher = User.objects.create_user(username='t9', password='pw', role='teacher', email='t9@example.com')
@@ -79,7 +87,7 @@ class ParentDashboardApplicationsTests(TestCase):
         )
         self.client.force_login(teacher)
         response = self.client.get(reverse('portal:home'))
-        self.assertContains(response, 'Staff Kid')
+        self.assertContains(response, reverse('admissions:dashboard'))
 
 
 class ResetDemoDataTests(TestCase):

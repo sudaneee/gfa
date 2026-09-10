@@ -16,7 +16,7 @@ class ApplicantSignupTests(TestCase):
 
     def test_signup_creates_user_and_guardian_and_logs_in(self):
         response = self._post()
-        self.assertRedirects(response, reverse('portal:home'))
+        self.assertRedirects(response, reverse('admissions:dashboard'))
 
         user = User.objects.get(email='ismail@example.com')
         self.assertEqual(user.role, 'parent')
@@ -54,7 +54,7 @@ class ApplicantSignupTests(TestCase):
         with no login yet — signup should claim it, not create a second one."""
         existing = Guardian.objects.create(name='Old Name', phone='08012345678', email='old@example.com')
         response = self._post()
-        self.assertRedirects(response, reverse('portal:home'))
+        self.assertRedirects(response, reverse('admissions:dashboard'))
 
         existing.refresh_from_db()
         self.assertEqual(existing.name, 'Ismail Bello')

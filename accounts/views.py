@@ -10,22 +10,36 @@ from accounts.decorators import admin_required
 from accounts.forms import AdminCreateUserForm, ApplicantSignupForm
 
 
+def _authenticate_by_identifier(request, identifier, password):
+    """Shared by login_view and admissions' applicant_login — accepts a
+    username OR an email address in the one field, since most people type
+    their email."""
+    user = authenticate(request, username=identifier, password=password)
+    if user is not None:
+        return user
+    from accounts.models import User
+    try:
+        match = User.objects.get(email__iexact=identifier)
+    except User.DoesNotExist:
+        return None
+    return authenticate(request, username=match.username, password=password)
+
+
 def login_view(request):
+    """
+    The School Portal login — staff, teachers, and parents/students of
+    already-enrolled children. Deliberately separate from
+    admissions.views.applicant_login: an applicant only cares about their
+    application(s), not the full staff/parent dashboard, and shouldn't
+    have to find their way through that unrelated furniture to get there.
+    """
     if request.user.is_authenticated:
         return redirect('portal:home')
 
     if request.method == 'POST':
-        email_or_username = request.POST.get('email', '').strip()
+        identifier = request.POST.get('email', '').strip()
         password = request.POST.get('password', '')
-        user = authenticate(request, username=email_or_username, password=password)
-        if user is None:
-            # Also allow logging in with email (username field defaults to username-only).
-            from accounts.models import User
-            try:
-                match = User.objects.get(email__iexact=email_or_username)
-                user = authenticate(request, username=match.username, password=password)
-            except User.DoesNotExist:
-                user = None
+        user = _authenticate_by_identifier(request, identifier, password)
 
         if user is not None:
             login(request, user)
@@ -79,7 +93,7 @@ def applicant_signup(request):
                 login(request, user)
                 messages.success(request, f'Welcome, {full_name}! You can now apply for your child.')
                 next_url = request.POST.get('next')
-                return redirect(next_url or 'portal:home')
+                return redirect(next_url or 'admissions:dashboard')
     else:
         form = ApplicantSignupForm()
 
