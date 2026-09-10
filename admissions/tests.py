@@ -214,6 +214,17 @@ class ApplicantLoginAndDashboardTests(TestCase):
         response = self.client.post(reverse('admissions:login'), {'email': 'applicant@example.com', 'password': 'pw'})
         self.assertRedirects(response, reverse('admissions:dashboard'))
 
+    def test_login_ignores_next_and_still_lands_on_the_dashboard(self):
+        """Arriving here via a ?next=apply_payment link (e.g. "Start
+        Application" while logged out) used to skip the dashboard
+        entirely and dump a successful login straight onto Step 1."""
+        _make_parent(email='applicant@example.com')
+        login_url = f"{reverse('admissions:login')}?next={reverse('admissions:apply_payment')}"
+        # The login form has no action attribute, so a real browser submits
+        # back to this same URL, next= and all — reproduce that exactly.
+        response = self.client.post(login_url, {'email': 'applicant@example.com', 'password': 'pw'})
+        self.assertRedirects(response, reverse('admissions:dashboard'))
+
     def test_login_by_email_or_username_both_work(self):
         user = User.objects.create_user(username='someweirdusername', email='e@example.com', password='pw', role='parent')
         response = self.client.post(reverse('admissions:login'), {'email': 'e@example.com', 'password': 'pw'})

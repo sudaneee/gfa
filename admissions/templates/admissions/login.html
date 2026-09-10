@@ -20,7 +20,6 @@
     <p class="text-muted text-sm mb-24">Sign in to continue an application, check its status, or apply for another child.</p>
     <form method="post">
       {% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.GET.next }}">
       <div class="form-group"><label>Email</label><input type="text" name="email" required autofocus></div>
       <div class="form-group"><label>Password</label><input type="password" name="password" required></div>
       <button type="submit" class="btn btn-primary btn-block btn-lg">Sign In <i class="fa-solid fa-arrow-right-to-bracket"></i></button>

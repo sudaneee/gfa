@@ -212,8 +212,15 @@ def applicant_login(request):
         if user is not None:
             login(request, user)
             messages.success(request, f'Welcome, {user.get_full_name() or user.username}!')
-            next_url = request.GET.get('next') or request.POST.get('next')
-            return redirect(next_url or 'admissions:dashboard')
+            # Deliberately ignores ?next= — logging in here always lands on
+            # the Applications Dashboard, never straight into a specific
+            # application's payment step. (A link like "Start Application"
+            # that sends a logged-out visitor here with ?next=apply_payment
+            # used to skip the dashboard entirely once they logged in —
+            # exactly the "why does it dump me on Step 1?" confusion this
+            # fixes.) From the dashboard, Continue/Apply for Another Child
+            # are the explicit ways into a specific application.
+            return redirect('admissions:dashboard')
 
         messages.error(request, 'Invalid email or password.')
 
