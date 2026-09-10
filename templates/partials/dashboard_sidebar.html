@@ -65,6 +65,9 @@
     <a href="{% url 'admin_console:fee_structures_list' %}" class="{% if active_slug == 'fee-structures' %}active{% endif %}"><i class="fa-solid fa-sack-dollar"></i> Fee Structures</a>
     <a href="{% url 'admin_console:invoices_list' %}" class="{% if active_slug == 'invoices' %}active{% endif %}"><i class="fa-solid fa-file-invoice-dollar"></i> Invoices</a>
     <a href="{% url 'admin_console:payments_list' %}" class="{% if active_slug == 'payments' %}active{% endif %}"><i class="fa-solid fa-credit-card"></i> Payments</a>
+    {% if school.manual_payment_registration_enabled %}
+    <a href="{% url 'admin_console:manual_fee_payment_registration' %}" class="{% if active_slug == 'manual-fee-payment' %}active{% endif %}"><i class="fa-solid fa-money-bill-transfer"></i> Register Manual Fee Payment</a>
+    {% endif %}
   </div>
   {% endif %}
 

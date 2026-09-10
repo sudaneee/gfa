@@ -51,12 +51,15 @@ class SchoolSettings(models.Model):
 
     # A temporary bridge while some parents still pay by bank transfer
     # instead of ZainPay despite that option no longer being offered on any
-    # payment page — lets an admin register their account and activate the
-    # payment by hand (Superadmin Console -> Register Manual Payment).
-    # Meant to be switched off here once that stops happening.
+    # payment page — lets an admin register the payment by hand, for
+    # either an application fee (Superadmin Console -> Register Manual
+    # Payment, which also creates the payer's account) or a termly school
+    # fee (-> Register Manual Fee Payment, against an already-enrolled
+    # student's invoice). One switch covers both. Meant to be switched
+    # off here once this stops happening.
     manual_payment_registration_enabled = models.BooleanField(
         default=True,
-        help_text='Lets an admin create an account and activate payment for someone who paid by bank transfer. Turn off once this is no longer needed.',
+        help_text='Lets an admin record a bank-transfer payment by hand — application fees and termly school fees alike. Turn off once this is no longer needed.',
     )
 
     updated_at = models.DateTimeField(auto_now=True)

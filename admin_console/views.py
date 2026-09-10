@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from accounts.decorators import admin_required
-from admin_console.forms import ManualPaymentRegistrationForm, TeacherCreateForm
+from admin_console.forms import ManualFeePaymentRegistrationForm, ManualPaymentRegistrationForm, TeacherCreateForm
 from admin_console.registry import REGISTRY, categories
 from admin_console.utils import filter_lookup_value, filter_options, querystring_without_page, resolve_value
 
@@ -582,6 +582,55 @@ def manual_payment_registration(request):
 
     return render(request, 'admin_console/manual_payment.html', {
         'form': form, 'candidates': candidates, 'active_nav': 'console', 'active_slug': 'manual-payment',
+    })
+
+
+# ── Same bridge, for termly school fees — no account to create (the
+# student's already enrolled and their parent already has a login), just
+# an invoice to find/generate and a payment to record against it. Shares
+# manual_payment_registration_enabled with the applications version:
+# one on/off switch for "manual payment registration" as a whole. ───────
+
+@admin_required
+def manual_fee_payment_registration(request):
+    from academics.models import Term
+    from finance.models import Invoice, Payment
+    from finance.services import InvoiceGenerationError, generate_invoice
+    from payments.services import mark_payment_success
+    from students.models import Student
+    from website.models import SchoolSettings
+
+    school = SchoolSettings.get_solo()
+    if not school.manual_payment_registration_enabled:
+        messages.error(request, 'Manual payment registration has been switched off — use ZainPay, or turn this back on in Settings.')
+        return redirect('admin_console:home')
+
+    if request.method == 'POST':
+        form = ManualFeePaymentRegistrationForm(request.POST)
+        if form.is_valid():
+            student = Student.objects.get(admission_number__iexact=form.cleaned_data['admission_number'])
+            term = form.cleaned_data['term']
+            try:
+                invoice = Invoice.objects.filter(student=student, term=term).first() or generate_invoice(student, term)
+            except InvoiceGenerationError as exc:
+                form.add_error(None, str(exc))
+            else:
+                payment = Payment.objects.create(
+                    invoice=invoice, gateway='manual', amount=form.cleaned_data['amount'],
+                    status='pending', notes=form.cleaned_data['notes'],
+                )
+                mark_payment_success(payment, user=request.user)
+                messages.success(
+                    request,
+                    f'Payment of ₦{form.cleaned_data["amount"]:,.2f} recorded for {student} — {term}. '
+                    'Invoice status updated and confirmation emailed.',
+                )
+                return redirect('admin_console:invoices_list')
+    else:
+        form = ManualFeePaymentRegistrationForm(initial={'term': Term.get_current()})
+
+    return render(request, 'admin_console/manual_fee_payment.html', {
+        'form': form, 'active_nav': 'console', 'active_slug': 'manual-fee-payment',
     })
 
 

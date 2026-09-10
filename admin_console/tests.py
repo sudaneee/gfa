@@ -390,6 +390,102 @@ class ManualPaymentRegistrationTests(TestCase):
         self.assertContains(response, 'already taken')
 
 
+class ManualFeePaymentRegistrationTests(TestCase):
+    """Same bridge as ManualPaymentRegistrationTests, for termly school
+    fees — no account to create here, an enrolled student's parent
+    already has one; this just finds/generates the invoice and records
+    the payment against it."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin1', password='pw', role='admin')
+        self.client.force_login(self.admin)
+
+        session = AcademicSession.objects.create(name='2025/2026', is_current=True)
+        self.term = Term.objects.create(session=session, name='first', is_current=True)
+        fee_band = FeeBand.objects.create(name='Primary')
+        school_class = SchoolClass.objects.create(name='Primary 3', level='Primary', order=1, fee_band=fee_band)
+        section = Section.objects.create(school_class=school_class, name='A')
+        self.structure = FeeStructure.objects.create(session=session, fee_band=fee_band, student_category='new')
+        FeeStructureItem.objects.create(fee_structure=self.structure, category='Tuition', amount=50000)
+        self.student = Student.objects.create(
+            first_name='Fee', last_name='Payer', gender='Male', school_class=school_class,
+            section=section, admission_number='GFA/2025/999',
+        )
+
+    def _post(self, **overrides):
+        data = {
+            'admission_number': self.student.admission_number, 'term': self.term.pk,
+            'amount': '50000', 'notes': 'Paid into Jaiz Bank, confirmed by the bursar.',
+        }
+        data.update(overrides)
+        return self.client.post(reverse('admin_console:manual_fee_payment_registration'), data)
+
+    def test_toggle_off_blocks_access(self):
+        from website.models import SchoolSettings
+
+        school = SchoolSettings.get_solo()
+        school.manual_payment_registration_enabled = False
+        school.save()
+
+        response = self.client.get(reverse('admin_console:manual_fee_payment_registration'))
+        self.assertRedirects(response, reverse('admin_console:home'))
+
+    def test_records_payment_against_an_existing_invoice(self):
+        invoice = Invoice.objects.create(student=self.student, term=self.term, fee_structure=self.structure)
+        InvoiceItem.objects.create(invoice=invoice, category='Tuition', amount=50000)
+
+        response = self._post(amount='30000')
+        self.assertRedirects(response, reverse('admin_console:invoices_list'))
+
+        invoice.refresh_from_db()
+        payment = invoice.payments.get()
+        self.assertEqual(payment.gateway, 'manual')
+        self.assertEqual(payment.status, 'success')
+        self.assertEqual(payment.amount, 30000)
+        self.assertEqual(payment.notes, 'Paid into Jaiz Bank, confirmed by the bursar.')
+        self.assertIsNotNone(payment.paid_at)
+        self.assertEqual(invoice.status, 'partial')
+
+    def test_full_payment_marks_the_invoice_paid(self):
+        invoice = Invoice.objects.create(student=self.student, term=self.term, fee_structure=self.structure)
+        InvoiceItem.objects.create(invoice=invoice, category='Tuition', amount=50000)
+
+        self._post(amount='50000')
+
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, 'paid')
+
+    def test_generates_the_invoice_when_none_exists_yet(self):
+        self.assertFalse(Invoice.objects.filter(student=self.student, term=self.term).exists())
+
+        response = self._post()
+        self.assertRedirects(response, reverse('admin_console:invoices_list'))
+
+        invoice = Invoice.objects.get(student=self.student, term=self.term)
+        self.assertEqual(invoice.status, 'paid')
+        self.assertEqual(invoice.payments.get().amount, 50000)
+
+    def test_unknown_admission_number_is_rejected(self):
+        response = self._post(admission_number='DOES-NOT-EXIST')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No student found')
+
+    def test_missing_fee_structure_is_reported_without_a_crash(self):
+        # No FeeStructure for this student's class/category in this term —
+        # generate_invoice can't build one, and the form should say so
+        # rather than 500.
+        unstructured_band = FeeBand.objects.create(name='Nursery')
+        unstructured_class = SchoolClass.objects.create(name='Nursery 1', level='Nursery', order=1, fee_band=unstructured_band)
+        student = Student.objects.create(
+            first_name='No', last_name='Structure', gender='Female', school_class=unstructured_class,
+            admission_number='GFA/2025/998',
+        )
+        response = self._post(admission_number=student.admission_number)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No fee structure')
+        self.assertFalse(Invoice.objects.filter(student=student).exists())
+
+
 class TeacherCreateTests(TestCase):
     """One save creates both the Teacher profile and their login — the
     generic Teachers registry entry has no field for Teacher.user at all,

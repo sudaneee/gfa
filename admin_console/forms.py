@@ -2,8 +2,10 @@ from decimal import Decimal, InvalidOperation
 
 from django import forms
 
+from academics.models import Term
 from accounts.models import User
 from staff.models import Teacher
+from students.models import Student
 
 
 class ManualPaymentRegistrationForm(forms.Form):
@@ -32,6 +34,43 @@ class ManualPaymentRegistrationForm(forms.Form):
         if User.objects.filter(username__iexact=username).exists():
             raise forms.ValidationError('That username is already taken.')
         return username
+
+    def clean_amount(self):
+        raw = self.cleaned_data['amount'].replace(',', '').strip()
+        try:
+            amount = Decimal(raw)
+        except InvalidOperation:
+            raise forms.ValidationError('Enter a valid amount.')
+        if amount <= 0:
+            raise forms.ValidationError('Amount must be greater than zero.')
+        return amount
+
+
+class ManualFeePaymentRegistrationForm(forms.Form):
+    """
+    The same bank-transfer bridge as ManualPaymentRegistrationForm, for
+    termly school fees rather than the admission application fee. Simpler
+    than that one — an enrolled student's parent already has a login, so
+    there's no account to create here, just an invoice to find (or
+    generate, if this term's run hasn't reached them yet) and a payment
+    to record against it.
+    """
+
+    admission_number = forms.CharField(label='Student Admission Number', max_length=30)
+    term = forms.ModelChoiceField(
+        label='Term', queryset=Term.objects.select_related('session').order_by('-session__name', 'name'),
+    )
+    amount = forms.CharField(label='Amount Paid (₦)')
+    notes = forms.CharField(
+        label='Notes', required=False, widget=forms.Textarea(attrs={'rows': 2}),
+        help_text='Optional — e.g. a bank transfer reference, for the record.',
+    )
+
+    def clean_admission_number(self):
+        admission_number = self.cleaned_data['admission_number'].strip()
+        if not Student.objects.filter(admission_number__iexact=admission_number).exists():
+            raise forms.ValidationError('No student found with that admission number.')
+        return admission_number
 
     def clean_amount(self):
         raw = self.cleaned_data['amount'].replace(',', '').strip()

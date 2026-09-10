@@ -12,6 +12,9 @@
     {% endif %}
     <a class="quick-action" href="{% url 'admin_console:invoices_list' %}"><i class="fa-solid fa-file-invoice-dollar"></i><span>Invoices</span></a>
     <a class="quick-action" href="{% url 'admin_console:payments_list' %}"><i class="fa-solid fa-credit-card"></i><span>Payments</span></a>
+    {% if school.manual_payment_registration_enabled %}
+    <a class="quick-action" href="{% url 'admin_console:manual_fee_payment_registration' %}"><i class="fa-solid fa-money-bill-transfer"></i><span>Register Manual Fee Payment</span></a>
+    {% endif %}
     <a class="quick-action" href="{% url 'admin_console:fee_structures_list' %}"><i class="fa-solid fa-sack-dollar"></i><span>Fee Structures</span></a>
     <a class="quick-action" href="{% url 'accounts:user_list' %}"><i class="fa-solid fa-users-gear"></i><span>Users &amp; Roles</span></a>
   </div>
