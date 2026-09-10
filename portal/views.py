@@ -200,6 +200,7 @@ def settings_edit(request):
     Form = modelform_factory(SchoolSettings, fields=[
         'name', 'tagline', 'slogan', 'address', 'email', 'phone_numbers', 'approvals', 'logo',
         'bank_name', 'bank_account_number', 'bank_account_name', 'current_session', 'application_fee',
+        'manual_payment_registration_enabled',
     ])
     if request.method == 'POST':
         form = Form(request.POST, request.FILES, instance=school)

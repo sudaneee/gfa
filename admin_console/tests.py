@@ -284,3 +284,107 @@ class UserCreationTests(TestCase):
         })
         self.assertEqual(response.status_code, 200)
         self.assertFalse(User.objects.filter(username='baduser').exists())
+
+
+class ManualPaymentRegistrationTests(TestCase):
+    """The bridge for a parent who paid by bank transfer instead of
+    ZainPay — admin creates their account and activates payment in one
+    step, reusing the exact same mark_payment_success everything else uses."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin1', password='pw', role='admin')
+        self.client.force_login(self.admin)
+
+    def _post(self, **overrides):
+        data = {
+            'full_name': 'Manual Parent', 'email': 'manual.parent@example.com', 'phone': '08033334444',
+            'username': 'manualparent', 'password': 'a-strong-password-1', 'amount': '2000',
+        }
+        data.update(overrides)
+        return self.client.post(reverse('admin_console:manual_payment_registration'), data)
+
+    def test_toggle_off_blocks_access(self):
+        from website.models import SchoolSettings
+
+        school = SchoolSettings.get_solo()
+        school.manual_payment_registration_enabled = False
+        school.save()
+
+        response = self.client.get(reverse('admin_console:manual_payment_registration'))
+        self.assertRedirects(response, reverse('admin_console:home'))
+
+    def test_creates_account_and_activates_payment_for_a_fresh_application(self):
+        from admissions.models import Application
+        from students.models import Guardian
+
+        response = self._post()
+        self.assertRedirects(response, reverse('admin_console:applications_list'))
+
+        user = User.objects.get(username='manualparent')
+        self.assertEqual(user.role, 'parent')
+        self.assertTrue(user.check_password('a-strong-password-1'))
+
+        guardian = Guardian.objects.get(user=user)
+        self.assertEqual(guardian.phone, '08033334444')
+
+        application = Application.objects.get(created_by=user)
+        invoice = application.invoice
+        self.assertTrue(invoice.is_paid)
+        payment = invoice.payments.get()
+        self.assertEqual(payment.status, 'success')
+        self.assertEqual(payment.gateway, 'manual')
+
+    def test_links_and_activates_an_existing_unclaimed_draft(self):
+        from admissions.models import Application
+
+        draft = Application.objects.create(
+            first_name='Existing', last_name='Draft', date_of_birth='2016-01-01', gender='Male',
+            state_of_origin='Niger', lga='Suleja', parent_name='', relationship='Father',
+            phone='08033334444', email='manual.parent@example.com', address='', applying_for='Creche',
+        )
+        self._post()
+
+        draft.refresh_from_db()
+        self.assertIsNotNone(draft.created_by)
+        self.assertEqual(draft.created_by.username, 'manualparent')
+        self.assertTrue(draft.invoice.is_paid)
+
+    def test_multiple_unclaimed_drafts_requires_disambiguation(self):
+        from admissions.models import Application
+
+        first = Application.objects.create(
+            first_name='Kid', last_name='One', date_of_birth='2016-01-01', gender='Male',
+            state_of_origin='Niger', lga='Suleja', parent_name='', relationship='Father',
+            phone='08033334444', email='manual.parent@example.com', address='', applying_for='Creche',
+        )
+        second = Application.objects.create(
+            first_name='Kid', last_name='Two', date_of_birth='2017-01-01', gender='Female',
+            state_of_origin='Niger', lga='Suleja', parent_name='', relationship='Father',
+            phone='08033334444', email='manual.parent@example.com', address='', applying_for='Creche',
+        )
+
+        response = self._post()
+        self.assertEqual(response.status_code, 200)  # re-rendered, not processed
+        self.assertContains(response, 'Kid One')
+        self.assertContains(response, 'Kid Two')
+        self.assertFalse(User.objects.filter(username='manualparent').exists())
+
+        # Now resubmit having picked one.
+        self._post(application_id=str(second.pk))
+        second.refresh_from_db()
+        first.refresh_from_db()
+        self.assertIsNotNone(second.created_by)
+        self.assertIsNone(first.created_by)  # untouched
+
+    def test_existing_account_is_not_duplicated(self):
+        User.objects.create_user(username='alreadyhasone', email='manual.parent@example.com', password='pw', role='parent')
+        response = self._post()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'already exists')
+        self.assertFalse(User.objects.filter(username='manualparent').exists())
+
+    def test_duplicate_username_is_rejected(self):
+        User.objects.create_user(username='manualparent', email='someone@example.com', password='pw', role='teacher')
+        response = self._post()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'already taken')

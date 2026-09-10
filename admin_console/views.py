@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from accounts.decorators import admin_required
+from admin_console.forms import ManualPaymentRegistrationForm
 from admin_console.registry import REGISTRY, categories
 from admin_console.utils import filter_lookup_value, filter_options, querystring_without_page, resolve_value
 
@@ -475,4 +476,108 @@ def fee_structure_delete(request, pk):
     return render(request, 'admin_console/confirm_delete_simple.html', {
         'label': str(structure), 'cancel_url': 'admin_console:fee_structures_list',
         'active_nav': 'console', 'active_slug': 'fee-structures',
+    })
+
+
+# ── Manual Payment Registration — a temporary bridge (see
+# SchoolSettings.manual_payment_registration_enabled) for someone who paid
+# the application fee by bank transfer instead of ZainPay: admin creates
+# their account (username/password set by the admin, not the parent) and
+# activates the payment in one step, reusing the exact same
+# mark_payment_success used everywhere else so an already-existing draft
+# (from before login was required) gets linked and paid identically to a
+# brand-new one. ──────────────────────────────────────────────────────────
+
+@admin_required
+def manual_payment_registration(request):
+    from django.conf import settings as django_settings
+
+    from accounts.models import User
+    from admissions.models import Application, ApplicationInvoice, ApplicationPayment
+    from payments.services import mark_payment_success
+    from students.models import Guardian
+    from website.models import SchoolSettings
+
+    school = SchoolSettings.get_solo()
+    if not school.manual_payment_registration_enabled:
+        messages.error(request, 'Manual payment registration has been switched off — use ZainPay, or turn this back on in Settings.')
+        return redirect('admin_console:home')
+
+    candidates = []
+    if request.method == 'POST':
+        form = ManualPaymentRegistrationForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data['email'].strip().lower()
+            phone = form.cleaned_data['phone'].strip()
+
+            existing_user = User.objects.filter(email__iexact=email).first()
+            guardian = Guardian.objects.filter(Q(email__iexact=email) | Q(phone=phone)).first()
+            if existing_user or (guardian and guardian.user_id):
+                owner = existing_user or guardian.user
+                form.add_error(None, f'An account already exists for this email/phone (username: {owner.username}) — use that account instead.')
+            else:
+                unclaimed = Application.objects.filter(created_by__isnull=True).filter(
+                    Q(email__iexact=email) | Q(phone=phone),
+                ).order_by('-created_at')
+
+                chosen_id = form.cleaned_data['application_id']
+                if chosen_id:
+                    application = get_object_or_404(Application, pk=chosen_id, created_by__isnull=True)
+                elif unclaimed.count() > 1:
+                    candidates = unclaimed
+                    application = None
+                elif unclaimed.count() == 1:
+                    application = unclaimed.first()
+                else:
+                    application = None  # created fresh below
+
+                if candidates:
+                    form.add_error(None, 'More than one unfinished application matches this email/phone — pick which one this payment is for.')
+                else:
+                    full_name = form.cleaned_data['full_name'].strip()
+                    user = User.objects.create_user(
+                        username=form.cleaned_data['username'], email=email,
+                        password=form.cleaned_data['password'], role='parent',
+                    )
+                    first, _, last = full_name.partition(' ')
+                    user.first_name, user.last_name = first, last
+                    user.save(update_fields=['first_name', 'last_name'])
+
+                    if guardian:
+                        guardian.name, guardian.phone, guardian.email, guardian.user = full_name, phone, email, user
+                        guardian.save(update_fields=['name', 'phone', 'email', 'user'])
+                    else:
+                        guardian = Guardian.objects.create(name=full_name, phone=phone, email=email, user=user)
+
+                    if application is None:
+                        application = Application.objects.create(
+                            first_name='', last_name='', date_of_birth='2015-01-01', gender='Male',
+                            state_of_origin='', lga='', parent_name=full_name, relationship='Father',
+                            phone=phone, email=email, address='', applying_for='Creche', created_by=user,
+                        )
+                    else:
+                        application.created_by = user
+                        application.parent_name, application.phone, application.email = full_name, phone, email
+                        application.save(update_fields=['created_by', 'parent_name', 'phone', 'email'])
+
+                    invoice, _ = ApplicationInvoice.objects.get_or_create(
+                        application=application, defaults={'amount': school.application_fee},
+                    )
+                    payment = ApplicationPayment.objects.create(
+                        invoice=invoice, gateway='manual', amount=form.cleaned_data['amount'], status='pending',
+                    )
+                    mark_payment_success(payment, user=request.user)
+
+                    login_url = f"{django_settings.SITE_URL}{reverse('accounts:login')}"
+                    messages.success(
+                        request,
+                        f'Account created and payment activated. Give {full_name} their login — '
+                        f'{login_url}, username "{user.username}" — so they can continue the application.',
+                    )
+                    return redirect('admin_console:applications_list')
+    else:
+        form = ManualPaymentRegistrationForm(initial={'amount': school.application_fee})
+
+    return render(request, 'admin_console/manual_payment.html', {
+        'form': form, 'candidates': candidates, 'active_nav': 'console', 'active_slug': 'manual-payment',
     })

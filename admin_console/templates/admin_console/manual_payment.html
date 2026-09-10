@@ -1,0 +1,73 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Register Manual Payment — {{ school.name }}{% endblock %}
+{% block dash_title %}Register Manual Payment{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">For someone who paid the application fee by bank transfer instead of ZainPay — creates their account and activates the payment in one step.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card" style="max-width:640px;"><div class="card-body">
+  <div class="alert alert-warning mb-16">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    Only use this once you've confirmed the transfer actually landed in the school's account. This is a temporary bridge —
+    it can be switched off from <a href="{% url 'portal:settings_edit' %}">Settings</a> once it's no longer needed.
+  </div>
+
+  {% for error in form.non_field_errors %}<div class="alert alert-danger mb-16"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</div>{% endfor %}
+
+  {% if candidates %}
+  <div class="alert alert-info mb-16">
+    <i class="fa-solid fa-circle-info"></i> More than one unfinished application matches this email/phone. Pick which one this payment is for, then submit again.
+  </div>
+  <div class="table-wrap mb-16"><table class="data-table">
+    <thead><tr><th>Application No.</th><th>Applicant</th><th>Applying For</th><th>Started</th></tr></thead>
+    <tbody>
+      {% for app in candidates %}
+      <tr><td>{{ app.application_number }}</td><td>{{ app.full_name|default:"—" }}</td><td>{{ app.applying_for }}</td><td>{{ app.created_at|date:"d M Y" }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    {% if candidates %}
+    <div class="form-group">
+      <label>Which application is this payment for?</label>
+      <select name="application_id" required>
+        <option value="">— Select —</option>
+        {% for app in candidates %}<option value="{{ app.pk }}">{{ app.application_number }} — {{ app.full_name|default:"Unnamed applicant" }} ({{ app.applying_for }})</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="form-group">
+      <label>Parent/Guardian Full Name <span class="req">*</span></label>{{ form.full_name }}
+      {% for e in form.full_name.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Email Address <span class="req">*</span></label>{{ form.email }}
+        {% for e in form.email.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        <label>Phone Number <span class="req">*</span></label>{{ form.phone }}
+        {% for e in form.phone.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Username <span class="req">*</span></label>{{ form.username }}
+        {% for e in form.username.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        <label>Password <span class="req">*</span></label>{{ form.password }}
+        {% for e in form.password.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Amount Paid (₦) <span class="req">*</span></label>{{ form.amount }}
+      <div class="form-hint">Defaults to the current application fee — change it if a different amount was actually transferred.</div>
+      {% for e in form.amount.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+    </div>
+    <button type="submit" class="btn btn-primary btn-block btn-lg"><i class="fa-solid fa-check"></i> Create Account &amp; Activate Payment</button>
+  </form>
+</div></div>
+{% endblock %}

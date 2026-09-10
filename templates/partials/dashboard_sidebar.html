@@ -24,6 +24,9 @@
   <div class="nav-section">
     <div class="nav-section-title">Admissions</div>
     <a href="{% url 'admin_console:applications_list' %}" class="{% if active_slug == 'applications' %}active{% endif %}"><i class="fa-solid fa-file-signature"></i> Applications</a>
+    {% if school.manual_payment_registration_enabled %}
+    <a href="{% url 'admin_console:manual_payment_registration' %}" class="{% if active_slug == 'manual-payment' %}active{% endif %}"><i class="fa-solid fa-money-bill-transfer"></i> Register Manual Payment</a>
+    {% endif %}
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Students &amp; Staff</div>

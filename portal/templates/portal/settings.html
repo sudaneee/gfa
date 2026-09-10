@@ -16,6 +16,7 @@
         <div class="item"><span class="k">Approvals</span><span class="v">{{ school.approvals }}</span></div>
         <div class="item"><span class="k">Application Fee</span><span class="v">₦{{ school.application_fee|floatformat:0 }}</span></div>
         <div class="item"><span class="k">Bank Account</span><span class="v">{{ school.bank_name }} — {{ school.bank_account_number }}</span></div>
+        <div class="item"><span class="k">Manual Payment Registration</span><span class="v">{% if school.manual_payment_registration_enabled %}<span class="badge badge-success">Enabled</span>{% else %}<span class="badge badge-gray">Disabled</span>{% endif %}</span></div>
       </div>
     </div>
   </div>
