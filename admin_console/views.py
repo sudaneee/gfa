@@ -125,7 +125,14 @@ def generic_delete(request, slug, pk):
 def applications_list(request):
     from admissions.models import Application
 
-    qs = Application.objects.filter(is_submitted=True).order_by('-submitted_at')
+    # Submitted applications AND paid-but-not-yet-submitted ones — someone
+    # who's paid has genuinely applied as far as the school (and the
+    # family) is concerned, even if they haven't clicked through the rest
+    # of the form yet, and staff need to be able to see and follow up with
+    # them rather than have them silently invisible. A blank/unpaid draft
+    # (someone who bounced before paying) is the one thing still excluded —
+    # that's not really "an application" yet.
+    qs = Application.objects.filter(Q(is_submitted=True) | Q(invoice__status='paid')).order_by('-created_at')
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(
@@ -134,13 +141,18 @@ def applications_list(request):
         )
     status = request.GET.get('status', '')
     if status:
-        qs = qs.filter(status=status)
+        qs = qs.filter(status=status, is_submitted=True)
+    stage = request.GET.get('stage', '')
+    if stage == 'in_progress':
+        qs = qs.filter(is_submitted=False)
+    elif stage == 'submitted':
+        qs = qs.filter(is_submitted=True)
 
     paginator = Paginator(qs, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
 
     return render(request, 'admin_console/applications.html', {
-        'page_obj': page_obj, 'q': q, 'status': status,
+        'page_obj': page_obj, 'q': q, 'status': status, 'stage': stage,
         'status_choices': Application.STATUS_CHOICES, 'active_nav': 'console', 'active_slug': 'applications',
         'querystring': querystring_without_page(request),
     })

@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import User
-from admissions.models import Application, ApplicationStatusLog
+from admissions.models import Application, ApplicationInvoice, ApplicationStatusLog
 from communication.models import Announcement
 from finance.models import FeeStructure, FeeStructureItem, Invoice, InvoiceItem, Payment
 from academics.models import AcademicSession, FeeBand, SchoolClass, Section, Term
@@ -90,6 +90,55 @@ class ApplicationConsoleTests(TestCase):
         self.application.refresh_from_db()
         self.assertEqual(self.application.status, 'shortlisted')
         self.assertTrue(ApplicationStatusLog.objects.filter(application=self.application, stage='shortlisted').exists())
+
+
+class ApplicationsListVisibilityTests(TestCase):
+    """The admin complained he wasn't seeing all applications — root cause
+    was the list only ever showed is_submitted=True, silently hiding
+    anyone who'd paid the fee but hadn't clicked through the rest of the
+    form yet. Paid-but-unsubmitted is now shown too; blank/unpaid
+    abandoned drafts (not really "an application" yet) stay hidden."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin1', password='pw', role='admin')
+        self.client.force_login(self.admin)
+
+        self.submitted = Application.objects.create(
+            first_name='Submitted', last_name='Kid', date_of_birth='2015-01-01', gender='Male',
+            state_of_origin='Niger', lga='Suleja', parent_name='Parent A', relationship='Father',
+            phone='08000000001', email='a@example.com', address='Address', applying_for='Creche',
+            is_submitted=True,
+        )
+        self.paid_unsubmitted = Application.objects.create(
+            first_name='', last_name='', date_of_birth='2015-01-01', gender='Male',
+            state_of_origin='', lga='', parent_name='', relationship='Father',
+            phone='', email='', address='', applying_for='Creche', is_submitted=False,
+        )
+        ApplicationInvoice.objects.create(application=self.paid_unsubmitted, amount=2000, status='paid')
+        self.unpaid_draft = Application.objects.create(
+            first_name='', last_name='', date_of_birth='2015-01-01', gender='Male',
+            state_of_origin='', lga='', parent_name='', relationship='Father',
+            phone='', email='', address='', applying_for='Creche', is_submitted=False,
+        )
+
+    def test_paid_but_unsubmitted_is_now_visible(self):
+        response = self.client.get(reverse('admin_console:applications_list'))
+        self.assertContains(response, self.submitted.application_number)
+        self.assertContains(response, self.paid_unsubmitted.application_number)
+
+    def test_blank_unpaid_draft_stays_hidden(self):
+        response = self.client.get(reverse('admin_console:applications_list'))
+        self.assertNotContains(response, self.unpaid_draft.application_number)
+
+    def test_stage_filter_submitted_excludes_paid_in_progress(self):
+        response = self.client.get(reverse('admin_console:applications_list'), {'stage': 'submitted'})
+        self.assertContains(response, self.submitted.application_number)
+        self.assertNotContains(response, self.paid_unsubmitted.application_number)
+
+    def test_stage_filter_in_progress_excludes_submitted(self):
+        response = self.client.get(reverse('admin_console:applications_list'), {'stage': 'in_progress'})
+        self.assertContains(response, self.paid_unsubmitted.application_number)
+        self.assertNotContains(response, self.submitted.application_number)
 
 
 class ApplicationEnrollTests(TestCase):
