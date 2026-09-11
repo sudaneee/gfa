@@ -13,11 +13,19 @@ admissions.ApplicationInvoice and finance.Invoice both qualify.
 2. Redirect the user to that URL
 3. ZainPay redirects back to callBackUrl with ?txnRef=<ref>
 4. GET /virtual-account/wallet/deposit/verify/v2/{txnRef}  →  confirm status
-     Success: HTTP 200, a flat deposit record (amountAfterCharges, txnRef, ...)
-     — there is no "code" field on success, unlike most other ZainPay endpoints.
+     Success has shown up in two shapes: a flat deposit record
+     (amountAfterCharges, txnRef, ... — no "code" field at all), and that
+     exact same record wrapped instead as {"status":"200 OK","code":"00",
+     "data":{...,"txnRef":...}} — seen live re-verifying a real payment
+     days after the fact, and NOT the same shape as the reconcile
+     endpoint's success below despite sharing "code":"00". Both are
+     handled; watch for a third shape if this ever misses another one.
      Ambiguous: HTTP 400 {"code":"04","description":"Txn not found",...} — the
      docs explicitly warn this same shape covers "still pending", "failed",
-     AND "genuinely doesn't exist". Not distinguishable on its own.
+     AND "genuinely doesn't exist". Not distinguishable on its own — and
+     seen live for a reference that later WAS confirmed successful once
+     ZainPay's own system caught up, so treat this as "ask again later",
+     never "definitely didn't happen".
 5. When step 4 is ambiguous, GET
      /virtual-account/wallet/transaction/reconcile/card-payment?txnRef=<ref>
    forces ZainPay to resolve it — returns {"code":"00","data":{"txnStatus":
@@ -158,10 +166,18 @@ def verify_payment(txn_ref: str) -> dict:
     except ValueError:
         raise ZainPayError(f"Non-JSON response (HTTP {resp.status_code}): {raw[:300]}")
 
-    # Success: HTTP 200 with the flat deposit record — no "code" field at all.
-    if resp.status_code == 200 and 'txnRef' in result:
+    # Success has shown up in two different shapes in practice: the flat
+    # deposit record documented above (no "code" field, txnRef at the top
+    # level), and — seen live, re-verifying a real payment days after the
+    # fact — the exact same deposit record wrapped in an envelope instead:
+    # {"status":"200 OK","code":"00","data":{...,"txnRef":...}}. Missing
+    # this second shape is what caused a genuinely-paid termly fee to get
+    # auto-retagged as manual by retag_payment_gateways — the deposit
+    # record was right there, just one level deeper than this used to look.
+    deposit_record = result if 'txnRef' in result else (result.get('data') if isinstance(result.get('data'), dict) else {})
+    if resp.status_code == 200 and 'txnRef' in deposit_record:
         try:
-            amount = Decimal(str(result.get('amountAfterCharges', 0)))
+            amount = Decimal(str(deposit_record.get('amountAfterCharges', 0)))
         except Exception:
             amount = Decimal('0.00')
         return {'status': 'success', 'amount': amount, 'gateway_reference': txn_ref, 'raw_response': result}
@@ -315,21 +331,24 @@ def looks_like_genuine_zainpay_success(raw_response: dict | None) -> bool:
     once told us this specific reference succeeded — as opposed to a
     'success' status that got onto the record some other way (the console's
     Mark Received, or the ZainPay-callback bug that used to guess a payment
-    with no verification at all)? Recognizes both shapes verify_payment can
-    return: the flat deposit record (no 'code' key, just txnRef) and the
-    reconcile endpoint's {"code": "00", "data": {"txnStatus": "success"}}.
-    A missing/empty response, or an ambiguous "Txn not found" shape, is
-    never genuine — see retag_payment_gateways, the one place this backs a
-    real decision.
+    with no verification at all)? Recognizes every shape verify_payment can
+    return for a real success: the flat deposit record (no 'code' key, just
+    txnRef), that same deposit record wrapped in a {"code": "00", "data":
+    {...,"txnRef":...}} envelope, and the reconcile endpoint's {"code":
+    "00", "data": {"txnStatus": "success"}}. A missing/empty response, or
+    an ambiguous "Txn not found" shape, is never genuine — see
+    retag_payment_gateways, the one place this backs a real decision.
     """
     if not raw_response:
         return False
     if 'txnRef' in raw_response and 'code' not in raw_response:
         return True
     data = raw_response.get('data') or {}
-    if str(raw_response.get('code')) == '00' and isinstance(data, dict) and str(data.get('txnStatus', '')).lower() == 'success':
+    if str(raw_response.get('code')) != '00' or not isinstance(data, dict):
+        return False
+    if 'txnRef' in data:
         return True
-    return False
+    return str(data.get('txnStatus', '')).lower() == 'success'
 
 
 # ── Manual (bank transfer) payments — works against ApplicationPayment or

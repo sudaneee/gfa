@@ -98,6 +98,23 @@ class VerifyPaymentParsingTests(TestCase):
         self.assertEqual(result['amount'], Decimal('1000.00'))
 
     @patch('payments.services.requests.get')
+    def test_success_shape_can_also_arrive_wrapped_in_a_code_envelope(self, mock_get):
+        """Caught live, re-verifying a real payment days after the fact: the
+        exact same deposit record, but wrapped as {"code":"00","data":{...}}
+        instead of sitting at the top level. Missing this shape is what let
+        a genuinely-paid termly fee get auto-retagged as manual."""
+        mock_get.return_value = _mock_response(200, {
+            'status': '200 OK', 'description': 'Successful', 'code': '00',
+            'data': {
+                'amountAfterCharges': '7796200', 'depositedAmount': '7920000',
+                'sender': 'ADIJAT TAYE SULAIMAN', 'txnRef': 'GFA-C656EDA368DC', 'txnType': 'deposit',
+            },
+        })
+        result = services.verify_payment('GFA-C656EDA368DC')
+        self.assertEqual(result['status'], 'success')
+        self.assertEqual(result['amount'], Decimal('7796200'))
+
+    @patch('payments.services.requests.get')
     def test_verify_hits_the_v2_endpoint(self, mock_get):
         mock_get.return_value = _mock_response(200, {'txnRef': 'X', 'amountAfterCharges': 500})
         services.verify_payment('X')
@@ -261,6 +278,15 @@ class GenuineZainpaySuccessDetectionTests(TestCase):
         self.assertTrue(services.looks_like_genuine_zainpay_success(
             {'code': '00', 'data': {'txnStatus': 'success'}, 'description': 'Transaction successful'}
         ))
+
+    def test_wrapped_deposit_record_is_genuine(self):
+        """The exact live-captured shape that used to slip through: same
+        deposit record as the flat shape, just nested under 'data' inside a
+        {"code":"00"} envelope."""
+        self.assertTrue(services.looks_like_genuine_zainpay_success({
+            'status': '200 OK', 'description': 'Successful', 'code': '00',
+            'data': {'amountAfterCharges': '7796200', 'txnRef': 'GFA-C656EDA368DC', 'txnType': 'deposit'},
+        }))
 
     def test_txn_not_found_is_not_genuine(self):
         self.assertFalse(services.looks_like_genuine_zainpay_success(
