@@ -35,6 +35,16 @@ from students.models import Student
 
 logger = logging.getLogger(__name__)
 
+# Stashed on the browser session at initiate time so the redirect-back leg
+# of zainpay_callback can recover the right payment if ZainPay's redirect
+# arrives without ?txnRef= — this is the ONLY fallback it's allowed to use.
+# It used to fall back to "the most recent pending payment" queried across
+# the whole database with no scoping at all, which could — and did — mark
+# a completely different family's still-unpaid application/invoice as paid
+# the next time that code path fired. Never re-introduce a DB-wide guess
+# here; an unresolvable callback should fail safely (see zainpay_callback).
+PENDING_ZAINPAY_REFERENCE_KEY = 'pending_zainpay_reference'
+
 
 def find_payment_by_reference(reference):
     if not reference:
@@ -100,6 +110,10 @@ def initiate_application_payment(request, application_number):
         invoice=invoice, amount=invoice.balance, gateway='zainpay', status='pending',
         gateway_reference=result['gateway_reference'], reference=result['reference'],
     )
+    # Remembered per-browser-session so the callback below can recover the
+    # right payment on the rare redirect that arrives without ?txnRef= —
+    # never guessed from the database at large (see PENDING_ZAINPAY_REFERENCE_KEY).
+    request.session[PENDING_ZAINPAY_REFERENCE_KEY] = result['reference']
     return redirect(result['payment_url'])
 
 
@@ -180,6 +194,7 @@ def initiate_fee_payment(request, student_id, term_id):
         invoice=invoice, amount=invoice.balance, gateway='zainpay', status='pending',
         gateway_reference=result['gateway_reference'], reference=result['reference'],
     )
+    request.session[PENDING_ZAINPAY_REFERENCE_KEY] = result['reference']
     return redirect(result['payment_url'])
 
 
@@ -224,15 +239,22 @@ def zainpay_callback(request):
     txn_ref = request.GET.get('txnRef') or request.GET.get('reference')
     payment = find_payment_by_reference(txn_ref)
     if not payment:
-        # Fall back to the most recent pending payment if txnRef didn't come
-        # through — graceful degradation on the redirect-back leg only.
-        payment = (
-            ApplicationPayment.objects.filter(status='pending').order_by('-created_at').first()
-            or FeePayment.objects.filter(status='pending').order_by('-created_at').first()
-        )
+        # ZainPay's redirect is documented to always carry ?txnRef=, but on
+        # the rare one that doesn't, recover it from THIS browser session's
+        # own most recently initiated payment — never guess across the
+        # database (see PENDING_ZAINPAY_REFERENCE_KEY for why that's banned).
+        session_ref = request.session.get(PENDING_ZAINPAY_REFERENCE_KEY)
+        payment = find_payment_by_reference(session_ref) if session_ref else None
     if not payment:
-        messages.warning(request, 'No pending payment found to verify.')
-        return redirect('website:home')
+        messages.warning(
+            request,
+            "We couldn't confirm which payment this was for. If you completed payment, "
+            'use the "Check Status" button on your application or invoice page — it will '
+            "pick up a successful payment within moments. Contact the school if it doesn't.",
+        )
+        return redirect('admissions:dashboard' if request.user.is_authenticated else 'website:home')
+
+    request.session.pop(PENDING_ZAINPAY_REFERENCE_KEY, None)
 
     try:
         result = services.process_payment(payment)

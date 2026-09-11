@@ -367,3 +367,100 @@ class WebhookTests(TestCase):
         response = self._signed_post({'event': 'deposit', 'data': {'txnRef': 'GFA-WEBHOOKREF01'}})
         self.assertEqual(response.status_code, 200)
         mock_verify.assert_not_called()
+
+
+class ZainPayCallbackRedirectTests(TestCase):
+    """The browser redirect-back leg of zainpay_callback (GET, not the
+    webhook). This used to fall back to "the most recent pending payment"
+    queried across the ENTIRE database with no scoping at all whenever
+    ?txnRef= didn't come through — which meant a redirect that lost its
+    txnRef could mark a completely different family's still-unpaid
+    application as paid. That's exactly the real incident this guards
+    against: a parent who paid for one child saw all of his children's
+    applications marked paid."""
+
+    def setUp(self):
+        self.url = reverse('payments:zainpay_callback')
+
+        self.mine = _make_application(email='mine@example.com', is_submitted=False)
+        self.mine_invoice = ApplicationInvoice.objects.create(application=self.mine, amount=Decimal('2000.00'))
+        self.mine_payment = ApplicationPayment.objects.create(
+            invoice=self.mine_invoice, amount=Decimal('2000.00'), gateway='zainpay', status='pending',
+            reference='GFA-MINEREF01',
+        )
+
+        # A completely unrelated family's still-pending payment — the old
+        # bug's "most recent pending payment" fallback would grab this one.
+        self.other = _make_application(email='other@example.com', is_submitted=False)
+        self.other_invoice = ApplicationInvoice.objects.create(application=self.other, amount=Decimal('2000.00'))
+        self.other_payment = ApplicationPayment.objects.create(
+            invoice=self.other_invoice, amount=Decimal('2000.00'), gateway='zainpay', status='pending',
+            reference='GFA-OTHERREF01',
+        )
+
+    @patch('payments.services.verify_payment')
+    def test_txn_ref_in_query_string_resolves_normally(self, mock_verify):
+        mock_verify.return_value = {
+            'status': 'success', 'amount': Decimal('2000.00'),
+            'gateway_reference': 'GFA-MINEREF01', 'raw_response': {},
+        }
+        self.client.get(self.url, {'txnRef': 'GFA-MINEREF01'})
+
+        self.mine_payment.refresh_from_db()
+        self.other_payment.refresh_from_db()
+        self.assertEqual(self.mine_payment.status, 'success')
+        self.assertEqual(self.other_payment.status, 'pending')  # untouched
+
+    @patch('payments.services.verify_payment')
+    def test_missing_txn_ref_recovers_from_this_sessions_own_reference(self, mock_verify):
+        """The one allowed fallback — this exact browser's own most
+        recently initiated payment, remembered in its session."""
+        mock_verify.return_value = {
+            'status': 'success', 'amount': Decimal('2000.00'),
+            'gateway_reference': 'GFA-MINEREF01', 'raw_response': {},
+        }
+        session = self.client.session
+        session['pending_zainpay_reference'] = 'GFA-MINEREF01'
+        session.save()
+
+        self.client.get(self.url)  # no txnRef in the query string at all
+
+        self.mine_payment.refresh_from_db()
+        self.other_payment.refresh_from_db()
+        self.assertEqual(self.mine_payment.status, 'success')
+        self.assertEqual(self.other_payment.status, 'pending')  # untouched
+
+    @patch('payments.services.verify_payment')
+    def test_missing_txn_ref_and_no_session_reference_never_guesses_a_database_payment(self, mock_verify):
+        """The regression test for the actual incident: no txnRef, no
+        session reference either (e.g. a different device/browser) —
+        must fail safely and touch NOTHING, not even the most recently
+        created pending payment."""
+        response = self.client.get(self.url)
+
+        mock_verify.assert_not_called()
+        self.mine_payment.refresh_from_db()
+        self.other_payment.refresh_from_db()
+        self.assertEqual(self.mine_payment.status, 'pending')
+        self.assertEqual(self.other_payment.status, 'pending')
+        self.assertRedirects(response, reverse('website:home'))
+
+    @patch('payments.services.verify_payment')
+    def test_stale_session_reference_from_an_earlier_payment_does_not_leak_forward(self, mock_verify):
+        """Once a payment's been resolved via the session fallback, that
+        session key is cleared — a second, unrelated callback on the same
+        browser (e.g. a stray reload) must not silently re-resolve to the
+        old payment."""
+        mock_verify.return_value = {
+            'status': 'success', 'amount': Decimal('2000.00'),
+            'gateway_reference': 'GFA-MINEREF01', 'raw_response': {},
+        }
+        session = self.client.session
+        session['pending_zainpay_reference'] = 'GFA-MINEREF01'
+        session.save()
+        self.client.get(self.url)  # resolves + clears the session key
+
+        mock_verify.reset_mock()
+        response = self.client.get(self.url)  # a second, txnRef-less hit
+        mock_verify.assert_not_called()
+        self.assertRedirects(response, reverse('website:home'))
