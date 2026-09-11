@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 from decimal import Decimal
+from io import StringIO
 from unittest.mock import Mock, patch
 
 from django.test import TestCase, override_settings
@@ -235,6 +236,46 @@ class MarkPaymentSuccessTests(TestCase):
 
         self.assertEqual(len(mail.outbox), 0)
 
+    def test_records_who_confirmed_it_for_the_audit_trail(self):
+        from accounts.models import User
+
+        admin = User.objects.create_user(username='admin1', password='pw', role='admin')
+        services.mark_payment_success(self.payment, user=admin)
+
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.received_by, admin)
+        self.assertEqual(self.payment.updated_by, admin)
+        self.assertIsNotNone(self.payment.updated_at)
+
+
+class GenuineZainpaySuccessDetectionTests(TestCase):
+    """services.looks_like_genuine_zainpay_success backs the retag audit —
+    it must recognize a real ZainPay success payload in either shape
+    verify_payment can return, and reject everything else, including the
+    exact 'Txn not found' shape a never-confirmed reference produces."""
+
+    def test_flat_deposit_record_is_genuine(self):
+        self.assertTrue(services.looks_like_genuine_zainpay_success({'txnRef': 'GFA-X', 'amountAfterCharges': '2000'}))
+
+    def test_reconcile_success_shape_is_genuine(self):
+        self.assertTrue(services.looks_like_genuine_zainpay_success(
+            {'code': '00', 'data': {'txnStatus': 'success'}, 'description': 'Transaction successful'}
+        ))
+
+    def test_txn_not_found_is_not_genuine(self):
+        self.assertFalse(services.looks_like_genuine_zainpay_success(
+            {'status': '404 Not Found', 'description': 'Txn not found', 'code': '04', 'data': None}
+        ))
+
+    def test_reconcile_failed_shape_is_not_genuine(self):
+        self.assertFalse(services.looks_like_genuine_zainpay_success(
+            {'code': '00', 'data': {'txnStatus': 'failed'}}
+        ))
+
+    def test_none_or_empty_is_not_genuine(self):
+        self.assertFalse(services.looks_like_genuine_zainpay_success(None))
+        self.assertFalse(services.looks_like_genuine_zainpay_success({}))
+
 
 class ProcessPaymentTests(TestCase):
     """payments.services.process_payment — the shared verify-and-persist logic."""
@@ -464,3 +505,90 @@ class ZainPayCallbackRedirectTests(TestCase):
         response = self.client.get(self.url)  # a second, txnRef-less hit
         mock_verify.assert_not_called()
         self.assertRedirects(response, reverse('website:home'))
+
+
+class RetagPaymentGatewaysCommandTests(TestCase):
+    """The one-time audit that separates 'ZainPay really confirmed this'
+    from 'someone in the console marked it received' — the exact
+    distinction this whole feature exists to make honest."""
+
+    def setUp(self):
+        self.application = _make_application()
+        self.invoice = ApplicationInvoice.objects.create(application=self.application, amount=Decimal('2000.00'))
+
+        self.genuine = ApplicationPayment.objects.create(
+            invoice=self.invoice, amount=Decimal('2000.00'), gateway='zainpay', status='success',
+            reference='GFA-GENUINE01',
+            gateway_response={'code': '00', 'data': {'txnStatus': 'success'}, 'description': 'ok'},
+        )
+
+        self.other_application = _make_application(email='other@example.com')
+        self.other_invoice = ApplicationInvoice.objects.create(application=self.other_application, amount=Decimal('2000.00'))
+        self.fake = ApplicationPayment.objects.create(
+            invoice=self.other_invoice, amount=Decimal('2000.00'), gateway='zainpay', status='success',
+            reference='GFA-FAKE01', gateway_response=None,
+        )
+
+    @patch('payments.services.verify_payment')
+    def test_payment_with_genuine_stored_response_is_left_alone(self, mock_verify):
+        from django.core.management import call_command
+
+        mock_verify.return_value = {'status': 'pending', 'amount': Decimal('0'), 'gateway_reference': '', 'raw_response': {}}
+        call_command('retag_payment_gateways', stdout=StringIO())
+
+        self.genuine.refresh_from_db()
+        self.assertEqual(self.genuine.gateway, 'zainpay')
+        # The other, evidence-less payment in this same run does need a live
+        # check — but the genuine one's own reference is never even asked.
+        called_refs = [call.args[0] for call in mock_verify.call_args_list]
+        self.assertNotIn('GFA-GENUINE01', called_refs)
+
+    @patch('payments.services.verify_payment')
+    def test_payment_with_no_evidence_and_no_live_confirmation_is_retagged(self, mock_verify):
+        from django.core.management import call_command
+
+        mock_verify.return_value = {'status': 'pending', 'amount': Decimal('0'), 'gateway_reference': '', 'raw_response': {}}
+
+        call_command('retag_payment_gateways', stdout=StringIO())
+
+        self.fake.refresh_from_db()
+        self.assertEqual(self.fake.gateway, 'manual')
+        self.assertIn('Retagged from ZainPay to Manual', self.fake.notes)
+        # Status/amount are never touched by the retag itself.
+        self.assertEqual(self.fake.status, 'success')
+        self.assertEqual(self.fake.amount, Decimal('2000.00'))
+
+    @patch('payments.services.verify_payment')
+    def test_live_confirmation_saves_a_payment_with_no_stored_evidence(self, mock_verify):
+        from django.core.management import call_command
+
+        mock_verify.return_value = {
+            'status': 'success', 'amount': Decimal('2000.00'), 'gateway_reference': 'GFA-FAKE01', 'raw_response': {},
+        }
+
+        call_command('retag_payment_gateways', stdout=StringIO())
+
+        self.fake.refresh_from_db()
+        self.assertEqual(self.fake.gateway, 'zainpay')  # live check vindicated it
+
+    @patch('payments.services.verify_payment')
+    def test_dry_run_changes_nothing(self, mock_verify):
+        from django.core.management import call_command
+
+        mock_verify.return_value = {'status': 'pending', 'amount': Decimal('0'), 'gateway_reference': '', 'raw_response': {}}
+
+        call_command('retag_payment_gateways', '--dry-run', stdout=StringIO())
+
+        self.fake.refresh_from_db()
+        self.assertEqual(self.fake.gateway, 'zainpay')
+
+    @patch('payments.services.verify_payment')
+    def test_network_error_during_live_check_is_treated_as_inconclusive_not_fatal(self, mock_verify):
+        from django.core.management import call_command
+
+        mock_verify.side_effect = services.ZainPayError('network error')
+
+        call_command('retag_payment_gateways', stdout=StringIO())  # must not raise
+
+        self.fake.refresh_from_db()
+        self.assertEqual(self.fake.gateway, 'manual')

@@ -250,6 +250,22 @@ class ApplicationPayment(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Audit trail for manually-entered/edited payments — never touched by
+    # the automatic ZainPay flow (created_by stays NULL for a payment the
+    # payer's own checkout created; only the admin-facing manual-payment
+    # forms set it). updated_by/updated_at are set on every edit, so a
+    # manual payment's history is always attributable to a specific person
+    # and moment, not just "the system".
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_application_payments',
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='updated_application_payments',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         ordering = ['-created_at']
 

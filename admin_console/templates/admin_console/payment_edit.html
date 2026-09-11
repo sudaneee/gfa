@@ -1,0 +1,41 @@
+{% extends "base_dashboard.html" %}
+{% block title %}Edit Payment — {{ school.name }}{% endblock %}
+{% block dash_title %}Edit Payment{% endblock %}
+{% block dash_subtitle %}<div class="sub text-sm text-muted">{{ payment.reference }} — manually recorded, so it can be corrected here. A ZainPay-confirmed payment can't be edited.</div>{% endblock %}
+
+{% block dash_content %}
+<div class="card" style="max-width:640px;"><div class="card-body">
+  <div class="alert alert-info mb-16">
+    <i class="fa-solid fa-circle-info"></i> Every change here is attributed — who created this record, and who last
+    edited it and when, are both kept for the record.
+  </div>
+
+  {% for error in form.non_field_errors %}<div class="alert alert-danger mb-16"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</div>{% endfor %}
+
+  <div class="rc-meta mb-24">
+    <div class="item"><span class="k">Created by</span><span class="v">{{ payment.created_by|default:"—" }}{% if payment.created_at %} &middot; {{ payment.created_at|date:"d M Y, H:i" }}{% endif %}</span></div>
+    <div class="item"><span class="k">Last updated by</span><span class="v">{{ payment.updated_by|default:"—" }}{% if payment.updated_by %} &middot; {{ payment.updated_at|date:"d M Y, H:i" }}{% endif %}</span></div>
+    <div class="item"><span class="k">Received by</span><span class="v">{{ payment.received_by|default:"—" }}</span></div>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label>Amount (₦) <span class="req">*</span></label>{{ form.amount }}
+      {% for e in form.amount.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="form-group">
+      <label>Status <span class="req">*</span></label>{{ form.status }}
+      {% for e in form.status.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="form-group">
+      <label>Notes</label>{{ form.notes }}
+      {% for e in form.notes.errors %}<div class="form-error" style="display:block;">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="flex gap-12 mt-16">
+      <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save Changes</button>
+      <a href="{% if payment.invoice.application_id %}{% url 'admin_console:application_detail' payment.invoice.application_id %}{% else %}{% url 'admin_console:payments_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

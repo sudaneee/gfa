@@ -61,6 +61,26 @@
       {% endif %}
     </div></div>
 
+    <div class="card mb-24"><div class="card-header"><h3>Payments</h3></div><div class="card-body">
+      {% for pay in payments %}
+      <div class="flex-between mb-12" style="align-items:flex-start;{% if not forloop.last %}border-bottom:1px solid var(--gray-100);padding-bottom:12px;{% endif %}">
+        <div>
+          <div><strong>{{ pay.reference }}</strong> — ₦{{ pay.amount|floatformat:2 }}</div>
+          <div class="text-muted text-sm">{{ pay.get_gateway_display }}
+            <span class="badge badge-{% if pay.status == 'success' %}success{% elif pay.status == 'pending' %}gold{% else %}danger{% endif %}">{{ pay.get_status_display }}</span>
+          </div>
+          {% if pay.gateway == 'manual' %}
+          <div class="text-muted text-sm">Created by {{ pay.created_by|default:"—" }}{% if pay.updated_by %} &middot; last edited by {{ pay.updated_by }} on {{ pay.updated_at|date:"d M Y, H:i" }}{% endif %}</div>
+          {% if pay.notes %}<div class="text-sm mt-4">{{ pay.notes|linebreaksbr }}</div>{% endif %}
+          {% endif %}
+        </div>
+        {% if pay.gateway == 'manual' %}
+        <a class="btn btn-secondary btn-sm" href="{% url 'admin_console:application_payment_edit' pay.pk %}"><i class="fa-solid fa-pen"></i> Edit</a>
+        {% endif %}
+      </div>
+      {% empty %}<p class="text-muted text-sm mb-0">No payment recorded yet.</p>{% endfor %}
+    </div></div>
+
     <div class="card"><div class="card-header"><h3>Timeline</h3></div><div class="card-body">
       {% for log in status_logs %}
       <div class="flex gap-8 mb-12" style="align-items:flex-start;">

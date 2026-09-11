@@ -10,6 +10,7 @@ urlpatterns = [
     path('applications/', views.applications_list, name='applications_list'),
     path('applications/<int:pk>/', views.application_detail, name='application_detail'),
     path('applications/<int:pk>/enroll/', views.application_enroll, name='application_enroll'),
+    path('applications/payments/<int:pk>/edit/', views.application_payment_edit, name='application_payment_edit'),
     path('manual-payment/', views.manual_payment_registration, name='manual_payment_registration'),
     path('manual-fee-payment/', views.manual_fee_payment_registration, name='manual_fee_payment_registration'),
     path('teachers/add/', views.teacher_create, name='teacher_create'),
@@ -18,6 +19,7 @@ urlpatterns = [
 
     path('payments/', views.payments_list, name='payments_list'),
     path('payments/mark-received/', views.payment_mark_received, name='payment_mark_received'),
+    path('payments/<int:pk>/edit/', views.fee_payment_edit, name='fee_payment_edit'),
 
     path('fee-structures/', views.fee_structures_list, name='fee_structures_list'),
     path('fee-structures/add/', views.fee_structure_create, name='fee_structure_create'),

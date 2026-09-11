@@ -27,20 +27,24 @@
         <td>{{ pay.reference }}</td>
         <td>{{ pay.invoice.student }}</td>
         <td>₦{{ pay.amount|floatformat:0 }}</td>
-        <td>{{ pay.get_gateway_display }}</td>
+        <td>{{ pay.get_gateway_display }}{% if pay.gateway == 'manual' and pay.created_by %}<div class="text-muted text-sm" {% if pay.notes %}title="{{ pay.notes }}"{% endif %}>by {{ pay.created_by }}</div>{% endif %}</td>
         <td><span class="badge badge-{% if pay.status == 'success' %}success{% elif pay.status == 'pending' %}gold{% else %}danger{% endif %}">{{ pay.get_status_display }}</span></td>
         <td>{{ pay.created_at|date:"d M Y" }}</td>
         <td class="text-right">
-          {% if pay.status == 'pending' %}
-          <form method="post" action="{% url 'admin_console:payment_mark_received' %}" style="display:inline;">
-            {% csrf_token %}
-            <input type="hidden" name="pk" value="{{ pay.pk }}">
-            <input type="hidden" name="qs" value="{{ querystring }}">
-            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-check"></i> Mark Received</button>
-          </form>
-          {% else %}
-          <a class="btn btn-secondary btn-sm" href="{% url 'payments:fee_invoice' pay.invoice.student.pk pay.invoice.term.pk %}"><i class="fa-solid fa-eye"></i> View Invoice</a>
-          {% endif %}
+          <div class="flex gap-8 flex-wrap" style="justify-content:flex-end;">
+            {% if pay.status == 'pending' %}
+            <form method="post" action="{% url 'admin_console:payment_mark_received' %}" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="pk" value="{{ pay.pk }}">
+              <input type="hidden" name="qs" value="{{ querystring }}">
+              <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-check"></i> Mark Received</button>
+            </form>
+            {% endif %}
+            {% if pay.gateway == 'manual' %}
+            <a class="btn btn-secondary btn-sm" href="{% url 'admin_console:fee_payment_edit' pay.pk %}"><i class="fa-solid fa-pen"></i> Edit</a>
+            {% endif %}
+            <a class="btn btn-secondary btn-sm" href="{% url 'payments:fee_invoice' pay.invoice.student.pk pay.invoice.term.pk %}"><i class="fa-solid fa-eye"></i> Invoice</a>
+          </div>
         </td>
       </tr>
       {% empty %}<tr><td colspan="7" class="text-muted">No payments match that search/filter.</td></tr>{% endfor %}

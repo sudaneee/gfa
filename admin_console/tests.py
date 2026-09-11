@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import User
-from admissions.models import Application, ApplicationInvoice, ApplicationStatusLog
+from admissions.models import Application, ApplicationInvoice, ApplicationPayment, ApplicationStatusLog
 from communication.models import Announcement
 from finance.models import FeeStructure, FeeStructureItem, Invoice, InvoiceItem, Payment
 from academics.models import AcademicSession, FeeBand, SchoolClass, Section, Term
@@ -90,6 +90,46 @@ class ApplicationConsoleTests(TestCase):
         self.application.refresh_from_db()
         self.assertEqual(self.application.status, 'shortlisted')
         self.assertTrue(ApplicationStatusLog.objects.filter(application=self.application, stage='shortlisted').exists())
+
+
+class ApplicationPaymentEditTests(TestCase):
+    """Same manual-only editing rule as termly fee payments, applied to
+    application-fee payments — and shown on the application's own detail
+    page rather than a separate list, since that's the only place they're
+    ever surfaced."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin1', password='pw', role='admin')
+        self.client.force_login(self.admin)
+        self.application = Application.objects.create(
+            first_name='Test', last_name='Applicant', date_of_birth='2015-01-01', gender='Male',
+            state_of_origin='Niger', lga='Suleja', parent_name='Parent', relationship='Father',
+            phone='08000000000', email='applicant@example.com', address='Address', applying_for='Creche',
+        )
+        self.invoice = ApplicationInvoice.objects.create(application=self.application, amount=2000)
+        self.manual_payment = ApplicationPayment.objects.create(
+            invoice=self.invoice, amount=2000, gateway='manual', status='success',
+        )
+
+    def test_manual_payment_shows_on_the_application_detail_page(self):
+        response = self.client.get(reverse('admin_console:application_detail', args=[self.application.pk]))
+        self.assertContains(response, self.manual_payment.reference)
+        self.assertContains(response, reverse('admin_console:application_payment_edit', args=[self.manual_payment.pk]))
+
+    def test_manual_payment_can_be_edited(self):
+        response = self.client.post(reverse('admin_console:application_payment_edit', args=[self.manual_payment.pk]), {
+            'amount': '2000', 'status': 'success', 'notes': 'Confirmed via bank statement.',
+        })
+        self.assertRedirects(response, reverse('admin_console:application_detail', args=[self.application.pk]))
+
+        self.manual_payment.refresh_from_db()
+        self.assertEqual(self.manual_payment.notes, 'Confirmed via bank statement.')
+        self.assertEqual(self.manual_payment.updated_by, self.admin)
+
+    def test_zainpay_payment_cannot_be_edited(self):
+        zainpay_payment = ApplicationPayment.objects.create(invoice=self.invoice, amount=2000, gateway='zainpay', status='success')
+        response = self.client.get(reverse('admin_console:application_payment_edit', args=[zainpay_payment.pk]))
+        self.assertRedirects(response, reverse('admin_console:application_detail', args=[self.application.pk]))
 
 
 class ApplicationsListVisibilityTests(TestCase):
@@ -260,6 +300,77 @@ class PaymentConsoleTests(TestCase):
         self.assertEqual(self.invoice.status, 'paid')
 
 
+class FeePaymentEditTests(TestCase):
+    """Editing is only ever offered for gateway='manual' — a ZainPay
+    payment is a real transaction, not something to retype by hand. Every
+    edit is attributed (updated_by/updated_at), and the invoice is kept in
+    sync with whatever the edit changes."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin1', password='pw', role='admin')
+        self.client.force_login(self.admin)
+
+        session = AcademicSession.objects.create(name='2025/2026', is_current=True)
+        self.term = Term.objects.create(session=session, name='first', is_current=True)
+        fee_band = FeeBand.objects.create(name='Primary')
+        school_class = SchoolClass.objects.create(name='Primary 3', level='Primary', order=1, fee_band=fee_band)
+        section = Section.objects.create(school_class=school_class, name='A')
+        structure = FeeStructure.objects.create(session=session, fee_band=fee_band, student_category='new')
+        FeeStructureItem.objects.create(fee_structure=structure, category='Tuition', amount=79000)
+        student = Student.objects.create(first_name='Pay', last_name='Test', gender='Male', school_class=school_class, section=section)
+        self.invoice = Invoice.objects.create(student=student, term=self.term, fee_structure=structure)
+        InvoiceItem.objects.create(invoice=self.invoice, category='Tuition', amount=79000)
+        self.manual_payment = Payment.objects.create(
+            invoice=self.invoice, amount=79000, gateway='manual', status='success', paid_at=None,
+        )
+
+    def test_manual_payment_can_be_edited(self):
+        response = self.client.post(reverse('admin_console:fee_payment_edit', args=[self.manual_payment.pk]), {
+            'amount': '40000', 'status': 'success', 'notes': 'Corrected — was double-recorded.',
+        })
+        self.assertRedirects(response, reverse('admin_console:payments_list'))
+
+        self.manual_payment.refresh_from_db()
+        self.assertEqual(self.manual_payment.amount, 40000)
+        self.assertEqual(self.manual_payment.notes, 'Corrected — was double-recorded.')
+        self.assertEqual(self.manual_payment.updated_by, self.admin)
+        self.assertIsNotNone(self.manual_payment.updated_at)
+
+    def test_zainpay_payment_cannot_be_edited(self):
+        zainpay_payment = Payment.objects.create(invoice=self.invoice, amount=79000, gateway='zainpay', status='success')
+
+        response = self.client.get(reverse('admin_console:fee_payment_edit', args=[zainpay_payment.pk]))
+        self.assertRedirects(response, reverse('admin_console:payments_list'))
+
+        response = self.client.post(reverse('admin_console:fee_payment_edit', args=[zainpay_payment.pk]), {
+            'amount': '1', 'status': 'success', 'notes': '',
+        })
+        self.assertRedirects(response, reverse('admin_console:payments_list'))
+        zainpay_payment.refresh_from_db()
+        self.assertEqual(zainpay_payment.amount, 79000)  # untouched
+
+    def test_editing_status_to_pending_resyncs_the_invoice(self):
+        self.client.post(reverse('admin_console:fee_payment_edit', args=[self.manual_payment.pk]), {
+            'amount': '79000', 'status': 'pending', 'notes': 'Was recorded in error.',
+        })
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, 'unpaid')
+
+    def test_flipping_status_to_success_stamps_the_success_fields(self):
+        self.manual_payment.status = 'pending'
+        self.manual_payment.save(update_fields=['status'])
+
+        self.client.post(reverse('admin_console:fee_payment_edit', args=[self.manual_payment.pk]), {
+            'amount': '79000', 'status': 'success', 'notes': '',
+        })
+
+        self.manual_payment.refresh_from_db()
+        self.assertEqual(self.manual_payment.status, 'success')
+        self.assertIsNotNone(self.manual_payment.paid_at)
+        self.assertTrue(self.manual_payment.receipt_number)
+
+
 class FeeStructureConsoleTests(TestCase):
     """The one deliberately non-generic financial-config model — proves
     the console respects the same is_locked guarantee finance/admin.py
@@ -382,6 +493,7 @@ class ManualPaymentRegistrationTests(TestCase):
         payment = invoice.payments.get()
         self.assertEqual(payment.status, 'success')
         self.assertEqual(payment.gateway, 'manual')
+        self.assertEqual(payment.created_by, self.admin)
 
     def test_links_and_activates_an_existing_unclaimed_draft(self):
         from admissions.models import Application
@@ -494,6 +606,7 @@ class ManualFeePaymentRegistrationTests(TestCase):
         self.assertEqual(payment.notes, 'Paid into Jaiz Bank, confirmed by the bursar.')
         self.assertIsNotNone(payment.paid_at)
         self.assertEqual(invoice.status, 'partial')
+        self.assertEqual(payment.created_by, self.admin)
 
     def test_full_payment_marks_the_invoice_paid(self):
         invoice = Invoice.objects.create(student=self.student, term=self.term, fee_structure=self.structure)

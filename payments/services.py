@@ -309,6 +309,29 @@ def generate_receipt_number() -> str:
     return f"RCT-{uuid.uuid4().hex[:8].upper()}"
 
 
+def looks_like_genuine_zainpay_success(raw_response: dict | None) -> bool:
+    """
+    Does a payment's stored gateway_response actually look like ZainPay
+    once told us this specific reference succeeded — as opposed to a
+    'success' status that got onto the record some other way (the console's
+    Mark Received, or the ZainPay-callback bug that used to guess a payment
+    with no verification at all)? Recognizes both shapes verify_payment can
+    return: the flat deposit record (no 'code' key, just txnRef) and the
+    reconcile endpoint's {"code": "00", "data": {"txnStatus": "success"}}.
+    A missing/empty response, or an ambiguous "Txn not found" shape, is
+    never genuine — see retag_payment_gateways, the one place this backs a
+    real decision.
+    """
+    if not raw_response:
+        return False
+    if 'txnRef' in raw_response and 'code' not in raw_response:
+        return True
+    data = raw_response.get('data') or {}
+    if str(raw_response.get('code')) == '00' and isinstance(data, dict) and str(data.get('txnStatus', '')).lower() == 'success':
+        return True
+    return False
+
+
 # ── Manual (bank transfer) payments — works against ApplicationPayment or
 # finance.Payment interchangeably, same "any invoice-like object" duck-typing
 # as the rest of this module. A parent who pays into the school's bank
@@ -320,11 +343,17 @@ def generate_receipt_number() -> str:
 
 def stamp_payment_success_fields(payment, user=None):
     """Fill in received_by/paid_at/receipt_number for a payment being saved
-    as successful — only touches fields that are still blank."""
+    as successful — only touches fields that are still blank. updated_by is
+    the one exception: it always reflects whoever most recently acted on
+    the payment (received_by stays the *original* confirmer), so it's set
+    unconditionally whenever a user is given. updated_at needs no help —
+    auto_now stamps it on every save regardless."""
     from django.utils import timezone
 
     if user and not payment.received_by_id:
         payment.received_by = user
+    if user:
+        payment.updated_by = user
     if not payment.paid_at:
         payment.paid_at = timezone.now()
     if not payment.receipt_number:

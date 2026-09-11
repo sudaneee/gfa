@@ -171,10 +171,12 @@ def application_detail(request, pk):
             return redirect('admin_console:application_detail', pk=pk)
         messages.error(request, 'Invalid status.')
 
+    invoice = getattr(application, 'invoice', None)
     return render(request, 'admin_console/application_detail.html', {
         'application': application, 'status_choices': Application.STATUS_CHOICES,
         'status_logs': application.status_logs.order_by('-created_at'),
         'enrolled_student': getattr(application, 'student', None),
+        'payments': invoice.payments.all() if invoice else [],
         'active_nav': 'console', 'active_slug': 'applications',
     })
 
@@ -378,6 +380,70 @@ def payment_mark_received(request):
     return redirect(f"{reverse('admin_console:payments_list')}{'?' + qs if qs else ''}")
 
 
+# Editing is only ever offered for gateway='manual' payments — a ZainPay
+# payment is a real bank transaction and isn't something to retype by
+# hand; the audit trail (created_by/updated_by/updated_at) is what makes a
+# manual payment trustworthy instead. Both edit views below share the same
+# shape: reject anything not gateway='manual', let the same three fields
+# (amount/status/notes) change, stamp updated_by, re-fill the success
+# fields if the edit is what makes it success, and re-sync the invoice
+# afterward since its status/balance are derived from exactly this data.
+
+def _edit_manual_payment(request, payment, template, redirect_url, redirect_args=()):
+    from payments.services import stamp_payment_success_fields, sync_invoice_status
+
+    Form = modelform_factory(type(payment), fields=['amount', 'status', 'notes'])
+    if request.method == 'POST':
+        # Captured before binding the form — is_valid() mutates `payment`
+        # in place via ModelForm's construct_instance, since `instance` IS
+        # this same object, so reading payment.status any later would
+        # already see the *new* value.
+        was_success = payment.status == 'success'
+        form = Form(request.POST, instance=payment)
+        if form.is_valid():
+            edited = form.save(commit=False)
+            if edited.status == 'success' and not was_success:
+                stamp_payment_success_fields(edited, user=request.user)
+            edited.updated_by = request.user
+            edited.save()
+            sync_invoice_status(edited.invoice)
+            messages.success(request, f'Payment {edited.reference} updated.')
+            return redirect(redirect_url, *redirect_args)
+    else:
+        form = Form(instance=payment)
+
+    return render(request, template, {
+        'form': form, 'payment': payment, 'active_nav': 'console', 'active_slug': 'payments',
+    })
+
+
+@admin_required
+def fee_payment_edit(request, pk):
+    from finance.models import Payment
+
+    payment = get_object_or_404(Payment, pk=pk)
+    if payment.gateway != 'manual':
+        messages.error(request, 'Only manually-recorded payments can be edited — a ZainPay-confirmed payment reflects a real transaction.')
+        return redirect('admin_console:payments_list')
+
+    return _edit_manual_payment(request, payment, 'admin_console/payment_edit.html', 'admin_console:payments_list')
+
+
+@admin_required
+def application_payment_edit(request, pk):
+    from admissions.models import ApplicationPayment
+
+    payment = get_object_or_404(ApplicationPayment, pk=pk)
+    if payment.gateway != 'manual':
+        messages.error(request, 'Only manually-recorded payments can be edited — a ZainPay-confirmed payment reflects a real transaction.')
+        return redirect('admin_console:application_detail', payment.invoice.application_id)
+
+    return _edit_manual_payment(
+        request, payment, 'admin_console/payment_edit.html',
+        'admin_console:application_detail', redirect_args=[payment.invoice.application_id],
+    )
+
+
 # ── Fee Structures — the one deliberately non-generic financial-config
 # model: editing/deleting must stop dead once a structure has been used to
 # generate an invoice (is_locked), so an already-billed amount can never
@@ -579,6 +645,7 @@ def manual_payment_registration(request):
                     )
                     payment = ApplicationPayment.objects.create(
                         invoice=invoice, gateway='manual', amount=form.cleaned_data['amount'], status='pending',
+                        created_by=request.user,
                     )
                     mark_payment_success(payment, user=request.user)
 
@@ -629,7 +696,7 @@ def manual_fee_payment_registration(request):
             else:
                 payment = Payment.objects.create(
                     invoice=invoice, gateway='manual', amount=form.cleaned_data['amount'],
-                    status='pending', notes=form.cleaned_data['notes'],
+                    status='pending', notes=form.cleaned_data['notes'], created_by=request.user,
                 )
                 mark_payment_success(payment, user=request.user)
                 messages.success(
